@@ -1,0 +1,14 @@
+{
+	"name": "Livestream Highlighter",
+	"description": "Finds the best moments of Youtube livestreams.",
+	"version": "1.0",
+	"manifest_version": 3,
+	
+	"permissions": ["contextMenus"],
+	"content_scripts": [{
+		"matches": ["*://www.youtube.com/live_chat*"],
+		"all_frames": true,
+		"run_at": "document_idle",
+		"js": ["./js/video_page_load.js"]
+	}]
+}
