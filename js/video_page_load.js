@@ -7,12 +7,18 @@ let current_analysis_state = 0;
 
 let menu_is_open = false;
 let settings_menu_is_open = false;
-let video_length = null;
+const video_length = timestamp_to_seconds(document.getElementsByClassName("ytp-time-duration")[0].textContent);;
 let recommended_section = null;
 
-//Settings Variables
+const default_settings_groups = [{"Name": "Default", "Enabled": true, "Time before trend": 15, "Sensitivity": 0.5, "Text to match" : [{"String/Regex": "Regex", "Text": "草"}]}];
+const default_settings_sets = [default_settings_groups];
+
+//A group is a collection of text to look for and that collection's associated settings.
+//A set is a group of groups, used for if you want different settings between different types of livestreams
 let settings_groups = {};
-const default_settings_groups = {"Default": {"Enabled": true, "String/Regex": "Regex", "Text": "草", "Time before trend": 15, "Sensitivity": 0.5}};
+let settings_sets = {};
+
+
 
 //HTML elements
 const highlights_area = document.createElement("div");
@@ -57,7 +63,7 @@ group_settings_area.id = "group_settings_area";
 const save_settings_button = document.createElement("button");
 group_settings_area.appendChild(save_settings_button);
 save_settings_button.id = "save_settings_button";
-save_settings_button.textContent = "SAVE SETTINGS";
+save_settings_button.textContent = "DONE";
 save_settings_button.addEventListener("click", () => {
 	settings_menu_is_open = false;
 	highlights_area.removeChild(settings_menu);
@@ -72,7 +78,7 @@ function timestamp_to_seconds(timestamp) {
 		return parseInt(timestamp[0])*60*60 + parseInt(timestamp[1])*60 + parseInt(timestamp[2]);
 }
 
-//Updates what's shown on the main menu according to the current processing state
+//Updates what's shown on the main menu according to the current gathering and analysis states
 function update_main_menu(latest_message_time) {
 	if(current_gathering_state === 1)
 		highlights_menu_status_message.textContent = (video_length && latest_message_time) ? "Gathering chat messages: " + ((latest_message_time/video_length)*100).toPrecision(3) + "%" : "Gathering chat messages";
@@ -95,7 +101,7 @@ function append_highlight_moment() {
 	highlights_menu.appendChild(highlight_moment);
 }
 
-//Gets the first continuation id from the webpage
+//Gets the first continuation id from the video page
 function get_initial_continuation_ID(message_array) {
 	return fetch(window.location.href)
 	.then(
@@ -208,22 +214,28 @@ async function highlights_button_pressed() {
 	}
 }
 
+//Initial DOM insertion
+recommended_section = document.getElementById("related");
+document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section);
+
+
+//Sometimes, DOM insertion fails because the page loads too slowly. This listener  
+//prevents this by checking for failure once a second for 30 seconds
 window.addEventListener("load", () => {
-	try{
-		video_length = timestamp_to_seconds(document.getElementsByClassName("ytp-time-duration")[0].textContent);
-	} catch (error) {
-		console.log(error);
-	}
-	
-	try{
-		recommended_section = document.getElementById("related");
-		document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section);
-	} catch(error) {
-		console.log(error);
-	}
-}, false);
-
-
+	let retry_count = 0;
+	var retry_interval = setInterval(() => {
+		console.log("Retry checking")
+		if(!document.getElementById("highlights_area")){
+			console.log("Livestream Highlighter: highlights_area is missing, reinserting...");
+			recommended_section = document.getElementById("related");
+			document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section)
+			window.clearInterval(retry_interval);
+		}
+		if(retry_count >= 30)
+			window.clearInterval(retry_interval);
+		retry_count++;
+	}, 1000);
+});
 
 
 
