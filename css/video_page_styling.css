@@ -4,6 +4,25 @@
 	border: 1px solid grey;
 }
 
+.highlight_moment {
+	margin-left: 20px;
+	margin-bottom: 10px;
+	white-space: pre-wrap;
+}
+
+.timestamp_link {
+	display: inline;
+	color: blue;
+	text-decoration: none;
+	font-size: 15px;
+}
+
+.highlight_group_text {
+	display: inline;
+	color: black;
+	font-size: 15px;
+}
+
 #highlights_area {
 	margin-bottom: 15px;
 }

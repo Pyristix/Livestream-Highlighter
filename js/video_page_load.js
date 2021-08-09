@@ -9,6 +9,8 @@ let menu_is_open = false;
 let settings_menu_is_open = false;
 const video_length = timestamp_to_seconds(document.getElementsByClassName("ytp-time-duration")[0].textContent);;
 let recommended_section = null;
+let message_array = [];
+let analysis_results = [{"group":"Kusa", "start_time":10, "end_time": 40}];
 
 const default_settings_groups = [{"Name": "Default", "Enabled": true, "Time before trend": 15, "Sensitivity": 0.5, "Text to match" : [{"String/Regex": "Regex", "Text": "草"}]}];
 const default_settings_sets = [default_settings_groups];
@@ -79,11 +81,11 @@ function timestamp_to_seconds(timestamp) {
 }
 
 //Updates what's shown on the main menu according to the current gathering and analysis states
-function update_main_menu(latest_message_time) {
+function update_main_menu(current_gathering_message_time, current_analysis_message_time) {
 	if(current_gathering_state === 1)
-		highlights_menu_status_message.textContent = (video_length && latest_message_time) ? "Gathering chat messages: " + ((latest_message_time/video_length)*100).toPrecision(3) + "%" : "Gathering chat messages";
+		highlights_menu_status_message.textContent = (current_gathering_message_time) ? "Gathering chat messages: " + ((current_gathering_message_time/video_length)*100).toPrecision(3) + "%" : "Gathering chat messages";
 	else if(current_analysis_state === 1)
-		highlights_menu_status_message.textContent = "Analyzing live chat...";
+		highlights_menu_status_message.textContent = (current_analysis_message_time) ? "Analyzing live chat " + ((current_analysis_message_time/video_length)*100).toPrecision(3) + "%" : "Analyzing live chat...";
 	else
 		highlights_menu_status_message.textContent = "";
 	
@@ -91,18 +93,32 @@ function update_main_menu(latest_message_time) {
 	if(!settings_menu_is_open)
 		highlights_menu.appendChild(settings_button);
 	highlights_menu.appendChild(highlights_menu_status_message);
+	append_highlight_moments();
 }
 
-function append_highlight_moment() {
-	const highlight_moment = document.createElement("a");
-	highlight_moment.textContent = "a_highlight";
-	highlight_moment.href = "";
+function append_highlight_moments() {
+	for(index in analysis_results){
+		const highlight_moment = document.createElement("div");
+		highlight_moment.className = "highlight_moment";
+		
+		const timestamp_link = document.createElement("a");
+		highlight_moment.appendChild(timestamp_link);
+		timestamp_link.textContent = analysis_results[index].start_time + " - " + analysis_results[index].end_time;
+		timestamp_link.className = "timestamp_link";
+		timestamp_link.href = "";
+		
+		const highlight_group = document.createElement("p");
+		highlight_moment.appendChild(highlight_group);
+		highlight_group.textContent = "  -  "+ analysis_results[index].group;
+		highlight_group.className = "highlight_group_text";
 
-	highlights_menu.appendChild(highlight_moment);
+		highlights_menu.appendChild(highlight_moment);
+	}
+	
 }
 
 //Gets the first continuation id from the video page
-function get_initial_continuation_ID(message_array) {
+function get_initial_continuation_ID() {
 	return fetch(window.location.href)
 	.then(
 		(response) => {
@@ -121,7 +137,7 @@ function get_initial_continuation_ID(message_array) {
 }
 
 //Recursive function that adds the current continuation's messages onto message_array then continues onto the next continuation.
-function get_next_continuation(continuation_id, message_array, iteration_count) {
+function get_next_continuation(continuation_id, iteration_count) {
 	return fetch("https://www.youtube.com/live_chat_replay?continuation=" + continuation_id)
 	.then(
 		(response) => {
@@ -152,20 +168,16 @@ function get_next_continuation(continuation_id, message_array, iteration_count) 
 			}
 			
 			for(const chat_item in chat_info.actions) {
-				try{
+				if(chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction !== undefined && chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction.item.liveChatTextMessageRenderer !== undefined)
 					message_array.push(chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction.item.liveChatTextMessageRenderer);
-				} catch (err) {
-					console.log(err);
-					continue;
-				}
 			}
 			
 			console.log(message_array);
-			try {
-				const latest_message_time = timestamp_to_seconds(message_array[message_array.length - 1].timestampText.simpleText);
-				update_main_menu(latest_message_time);
-			} catch (error) {
-				console.log(error);
+			update_main_menu(timestamp_to_seconds(message_array[message_array.length - 1].timestampText.simpleText));
+
+			if(current_analysis_state === 0){
+				current_analysis_state = 1;
+				analyze_messages(0, 0, 20, true);
 			}
 			
 			try{
@@ -177,9 +189,52 @@ function get_next_continuation(continuation_id, message_array, iteration_count) 
 			}
 			
 			if(data)
-				return get_next_continuation(chat_info.continuations[0].liveChatReplayContinuationData.continuation, message_array, iteration_count + 1);
+				return get_next_continuation(chat_info.continuations[0].liveChatReplayContinuationData.continuation, iteration_count + 1);
 		}
 	);
+}
+
+function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, first_iteration) {
+	if(current_gathering_state === 2 && video_length - current_analysis_time <= analysis_time_width){
+		console.log("Livestream Highligher: Finished analysis")
+		current_analysis_state = 2;
+		update_main_menu();
+		return;
+	}
+	
+	const latest_message_time = timestamp_to_seconds(message_array[message_array.length - 1].timestampText.simpleText);
+	if(current_gathering_state === 2 || latest_message_time > current_analysis_time + analysis_time_width){
+		//TODO: logic for finding whether or not there's a trend for each group
+		
+		if(current_analysis_time % 100 === 0)
+			console.log("Analysis time: " + current_analysis_time + " " + message_array.length + " " + current_righthand_index);
+		
+		if(first_iteration){
+			try{
+				while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) <= current_analysis_time)
+					current_righthand_index++;
+				console.log("First righthand index: " + current_righthand_index);
+			} catch(error) {
+				console.log(error);
+				console.log(message_array[current_righthand_index]);
+				console.log("Current righthand index: " + current_righthand_index + ", array max index: " + (message_array.length - 1))
+				return;
+			}
+		}
+		
+		current_analysis_time++;
+		
+		while(!(current_righthand_index === 0)){
+			message_array.shift();
+			current_righthand_index--;
+		}
+		
+		while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) === current_analysis_time)
+			current_righthand_index++;
+	}
+	
+	update_main_menu(latest_message_time, current_analysis_time);
+	setTimeout(analyze_messages, 0, current_analysis_time, current_righthand_index, analysis_time_width, false);
 }
 
 async function highlights_button_pressed() {
@@ -199,24 +254,27 @@ async function highlights_button_pressed() {
 	if(current_gathering_state === 0){
 		current_gathering_state = 1;
 		update_main_menu();
-		let message_array = [];
-		const initial_continuation_id = await get_initial_continuation_ID(message_array);
+		
+		const initial_continuation_id = await get_initial_continuation_ID();
 		console.log("initial_continuation_id: " + initial_continuation_id);
-		await get_next_continuation(initial_continuation_id, message_array, 0);
-		console.log(message_array);
-		//Do analysis here
-		//...
-		//current_analysis_state = 2;
+		await get_next_continuation(initial_continuation_id, 0);
+		
 		update_main_menu();
-		append_highlight_moment();
+		append_highlight_moments();
 	} else {
 		console.log("Route 2")
 	}
 }
 
 //Sometimes, DOM insertion fails because the page loads too slowly. This listener  
-//prevents this by checking for failure once a second for 30 seconds
+//prevents this by checking for failure twice a second for 30 seconds
 window.addEventListener("load", () => {
+	if(!document.getElementById("highlights_area") && document.getElementById("chat")){
+		console.log("Livestream Highlighter: Inserting Highlights Area");
+		recommended_section = document.getElementById("related");
+		document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section)
+	}
+	
 	let retry_count = 0;
 	var retry_interval = setInterval(() => {
 		if(!document.getElementById("highlights_area") && document.getElementById("chat")){
@@ -225,9 +283,9 @@ window.addEventListener("load", () => {
 			document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section)
 		}
 		retry_count++;
-		if(retry_count >= 30)
+		if(retry_count >= 60)
 			window.clearInterval(retry_interval);
-	}, 1000);
+	}, 500);
 });
 
 
