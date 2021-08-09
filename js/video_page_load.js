@@ -214,26 +214,19 @@ async function highlights_button_pressed() {
 	}
 }
 
-//Initial DOM insertion
-recommended_section = document.getElementById("related");
-document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section);
-
-
 //Sometimes, DOM insertion fails because the page loads too slowly. This listener  
 //prevents this by checking for failure once a second for 30 seconds
 window.addEventListener("load", () => {
 	let retry_count = 0;
 	var retry_interval = setInterval(() => {
-		console.log("Retry checking")
-		if(!document.getElementById("highlights_area")){
-			console.log("Livestream Highlighter: highlights_area is missing, reinserting...");
+		if(!document.getElementById("highlights_area") && document.getElementById("chat")){
+			console.log("Livestream Highlighter: Inserting Highlights Area");
 			recommended_section = document.getElementById("related");
 			document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section)
-			window.clearInterval(retry_interval);
 		}
+		retry_count++;
 		if(retry_count >= 30)
 			window.clearInterval(retry_interval);
-		retry_count++;
 	}, 1000);
 });
 
