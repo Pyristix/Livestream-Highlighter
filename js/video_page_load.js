@@ -10,7 +10,11 @@ let settings_menu_is_open = false;
 const video_length = timestamp_to_seconds(document.getElementsByClassName("ytp-time-duration")[0].textContent);;
 let recommended_section = null;
 let message_array = [];
+let latest_gathering_message_time = null;
 let analysis_results = [{"group":"Kusa", "start_time":10, "end_time": 40}];
+
+//DEBUGGING USE
+let analysis_time_changes = [0, 0, 0, 0, 0, 0];
 
 const default_settings_groups = [{"Name": "Default", "Enabled": true, "Time before trend": 15, "Sensitivity": 0.5, "Text to match" : [{"String/Regex": "Regex", "Text": "草"}]}];
 const default_settings_sets = [default_settings_groups];
@@ -81,9 +85,9 @@ function timestamp_to_seconds(timestamp) {
 }
 
 //Updates what's shown on the main menu according to the current gathering and analysis states
-function update_main_menu(current_gathering_message_time, current_analysis_message_time) {
+function update_main_menu(current_analysis_message_time) {
 	if(current_gathering_state === 1)
-		highlights_menu_status_message.textContent = (current_gathering_message_time) ? "Gathering chat messages: " + ((current_gathering_message_time/video_length)*100).toPrecision(3) + "%" : "Gathering chat messages";
+		highlights_menu_status_message.textContent = (latest_gathering_message_time) ? "Gathering chat messages: " + ((latest_gathering_message_time/video_length)*100).toPrecision(3) + "%" : "Gathering chat messages";
 	else if(current_analysis_state === 1)
 		highlights_menu_status_message.textContent = (current_analysis_message_time) ? "Analyzing live chat " + ((current_analysis_message_time/video_length)*100).toPrecision(3) + "%" : "Analyzing live chat...";
 	else
@@ -173,11 +177,12 @@ function get_next_continuation(continuation_id, iteration_count) {
 			}
 			
 			console.log(message_array);
-			update_main_menu(timestamp_to_seconds(message_array[message_array.length - 1].timestampText.simpleText));
+			latest_gathering_message_time = timestamp_to_seconds(message_array[message_array.length - 1].timestampText.simpleText);
+			update_main_menu();
 
 			if(current_analysis_state === 0){
 				current_analysis_state = 1;
-				analyze_messages(0, 0, 20, true);
+				analyze_messages(0, 0, 20, true, 1);
 			}
 			
 			try{
@@ -194,16 +199,29 @@ function get_next_continuation(continuation_id, iteration_count) {
 	);
 }
 
-function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, first_iteration) {
+function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, first_iteration, iteration_count, last_checkpoint_time) {
+	let current_time = Date.now();
+	console.log("Checkpoint 1: " + current_time);
+	if(current_time > last_checkpoint_time)
+		analysis_time_changes[0]+= current_time - last_checkpoint_time;
+	last_checkpoint_time = current_time;
+	
 	if(current_gathering_state === 2 && video_length - current_analysis_time <= analysis_time_width){
 		console.log("Livestream Highligher: Finished analysis")
+		console.log("Iteration count: " + iteration_count);
 		current_analysis_state = 2;
+		console.log(analysis_time_changes);
 		update_main_menu();
 		return;
 	}
 	
-	const latest_message_time = timestamp_to_seconds(message_array[message_array.length - 1].timestampText.simpleText);
-	if(current_gathering_state === 2 || latest_message_time > current_analysis_time + analysis_time_width){
+	if(current_gathering_state === 2 || latest_gathering_message_time > current_analysis_time + analysis_time_width){
+		current_time = Date.now();
+		console.log("Checkpoint 2: " + current_time);
+		if(current_time > last_checkpoint_time)
+			analysis_time_changes[1]+= current_time - last_checkpoint_time;
+		last_checkpoint_time = current_time;
+		
 		//TODO: logic for finding whether or not there's a trend for each group
 		
 		if(current_analysis_time % 100 === 0)
@@ -231,10 +249,37 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 		
 		while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) === current_analysis_time)
 			current_righthand_index++;
+		
+		current_time = Date.now();
+		console.log("Checkpoint 3: " + current_time);
+		if(current_time > last_checkpoint_time)
+			analysis_time_changes[2]+= current_time - last_checkpoint_time;
+		last_checkpoint_time = current_time;
 	}
 	
-	update_main_menu(latest_message_time, current_analysis_time);
-	setTimeout(analyze_messages, 0, current_analysis_time, current_righthand_index, analysis_time_width, false);
+	current_time = Date.now();
+	console.log("Checkpoint 4: " + current_time);
+	if(current_time > last_checkpoint_time)
+		analysis_time_changes[3]+= current_time - last_checkpoint_time;
+	last_checkpoint_time = current_time;
+	
+	if(current_analysis_time % 100 === 0)
+		update_main_menu(current_analysis_time);
+	
+	
+	current_time = Date.now();
+	console.log("Checkpoint 5: " + current_time);
+	if(current_time > last_checkpoint_time)
+		analysis_time_changes[4]+= current_time - last_checkpoint_time;
+	last_checkpoint_time = current_time;
+	
+	setTimeout(analyze_messages, 1, current_analysis_time, current_righthand_index, analysis_time_width, false, iteration_count + 1);
+	
+	current_time = Date.now();
+	console.log("Checkpoint 6: " + current_time);
+	if(current_time > last_checkpoint_time)
+		analysis_time_changes[5]+= current_time - last_checkpoint_time;
+	last_checkpoint_time = current_time;
 }
 
 async function highlights_button_pressed() {
@@ -287,6 +332,5 @@ window.addEventListener("load", () => {
 			window.clearInterval(retry_interval);
 	}, 500);
 });
-
 
 

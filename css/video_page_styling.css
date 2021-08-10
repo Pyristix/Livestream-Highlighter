@@ -37,6 +37,7 @@
 }
 
 #highlights_menu {
+	position: relative;
 	background-color: #F9F9F9;
 	border-top: 0px;
 	height: 300px;
