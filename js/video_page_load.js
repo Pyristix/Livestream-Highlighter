@@ -8,22 +8,25 @@ let current_analysis_state = 0;
 let menu_is_open = false;
 let settings_menu_is_open = false;
 const video_length = timestamp_to_seconds(document.getElementsByClassName("ytp-time-duration")[0].textContent);;
-let recommended_section = null;
+const recommended_section = null;
 let message_array = [];
 let latest_gathering_message_time = null;
-let analysis_results = [{"group":"Kusa", "start_time":10, "end_time": 40}];
+//Format: {"group":"Kusa", "start_time":10, "end_time": 40}
+let analysis_results = [];
 
 //DEBUGGING USE
 let analysis_time_changes = [0, 0, 0, 0, 0, 0];
 
-const default_settings_groups = [{"Name": "Default", "Enabled": true, "Time before trend": 15, "Sensitivity": 0.5, "Text to match" : [{"String/Regex": "Regex", "Text": "草"}]}];
+const default_settings_groups = [{"Name": "Default", "Enabled": true, "Time before trend": 15, "Sensitivity": 0.5, "Regex filter": "", "Text to match" : [{"String/Regex": "String", "Text": "草"}]}];
 const default_settings_sets = [default_settings_groups];
 
 //A group is a collection of text to look for and that collection's associated settings.
 //A set is a group of groups, used for if you want different settings between different types of livestreams
-let settings_groups = {};
-let settings_sets = {};
+let settings_groups = [];
+let settings_sets = [];
 
+//DEBUGGING USE
+settings_groups = default_settings_groups;
 
 
 //HTML elements
@@ -182,7 +185,10 @@ function get_next_continuation(continuation_id, iteration_count) {
 
 			if(current_analysis_state === 0){
 				current_analysis_state = 1;
-				analyze_messages(0, 0, 20, true, 1);
+				let group_counts = []
+				for(i in settings_groups)
+					group_counts.push({"regex_filter": settings_groups[i]."Regex filter" ? new RegExp(settings_groups[i]."Regex filter") : "", "filter_match_count": 0, "text_match": 0, "currently_in_trend": false});
+				analyze_messages(0, 0, 20, true, 1, group_counts);
 			}
 			
 			try{
@@ -199,81 +205,99 @@ function get_next_continuation(continuation_id, iteration_count) {
 	);
 }
 
-function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, first_iteration, iteration_count, last_checkpoint_time) {
+function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, first_iteration, iteration_count, group_counts) {
 	let current_time = Date.now();
 	console.log("Checkpoint 1: " + current_time);
 	if(current_time > last_checkpoint_time)
 		analysis_time_changes[0]+= current_time - last_checkpoint_time;
 	last_checkpoint_time = current_time;
 	
-	if(current_gathering_state === 2 && video_length - current_analysis_time <= analysis_time_width){
-		console.log("Livestream Highligher: Finished analysis")
-		console.log("Iteration count: " + iteration_count);
-		current_analysis_state = 2;
-		console.log(analysis_time_changes);
-		update_main_menu();
-		return;
-	}
 	
-	if(current_gathering_state === 2 || latest_gathering_message_time > current_analysis_time + analysis_time_width){
-		current_time = Date.now();
-		console.log("Checkpoint 2: " + current_time);
-		if(current_time > last_checkpoint_time)
-			analysis_time_changes[1]+= current_time - last_checkpoint_time;
-		last_checkpoint_time = current_time;
+	for(let i = 0; i < 100; i++){
+		if(current_gathering_state === 2 && video_length - current_analysis_time <= analysis_time_width){
+			console.log("Livestream Highligher: Finished analysis")
+			console.log("Iteration count: " + iteration_count);
+			console.log("Current Second: " + current_analysis_time);
+			current_analysis_state = 2;
+			console.log(analysis_time_changes);
+			update_main_menu();
+			return;
+		}
 		
-		//TODO: logic for finding whether or not there's a trend for each group
+		if(current_gathering_state === 2 || latest_gathering_message_time > current_analysis_time + analysis_time_width){
+			current_time = Date.now();
+			console.log("Checkpoint 2: " + current_time);
+			if(current_time > last_checkpoint_time)
+				analysis_time_changes[1]+= current_time - last_checkpoint_time;
+			last_checkpoint_time = current_time;
+			
+			if(current_analysis_time % 100 === 0)
+				console.log("Analysis time: " + current_analysis_time + " " + message_array.length + " " + current_righthand_index);
+			
+			if(first_iteration){
+				try{
+					while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) <= current_analysis_time){
+						//Filtering and trend matching for first iteration
+						for(let i = 0; i < settings_groups.length; i++){
+							if(!settings_groups[i]."Regex filter" || group_counts.regex_filter.test(message_array[current_righthand_index])){
+								for(let j = 0; j < settings_groups[i]."Text to match".length; j++){
+									if(settings_groups[i]."Text to match"."String/Regex" === "Regex"){
+										const trend_regex_filter = new RegExp(settings_groups[i]."Text to match"."Text");
+										if(trend_regex_filter.test(//TODO: regex test message contents))
+									}else{
+										//TODO: Logic for strings
+									}
+								}
+							}
+						}
+						current_righthand_index++;
+					}	
+					console.log("First righthand index: " + current_righthand_index);
+				} catch(error) {
+					console.log(error);
+					console.log(message_array[current_righthand_index]);
+					console.log("Current righthand index: " + current_righthand_index + ", array max index: " + (message_array.length - 1))
+					return;
+				}
+			}
+			
+			for(group in settings_groups){
+				//TODO: Trend finding logic for iterations past the first one.
+			}
+			
+			current_analysis_time++;
+			
+			while(!(current_righthand_index === 0)){
+				message_array.shift();
+				current_righthand_index--;
+			}
+			
+			while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) === current_analysis_time)
+				current_righthand_index++;
+			
+			current_time = Date.now();
+			console.log("Checkpoint 3: " + current_time);
+			if(current_time > last_checkpoint_time)
+				analysis_time_changes[2]+= current_time - last_checkpoint_time;
+			last_checkpoint_time = current_time;
+		}
+		
+		current_time = Date.now();
+		console.log("Checkpoint 4: " + current_time);
+		if(current_time > last_checkpoint_time)
+			analysis_time_changes[3]+= current_time - last_checkpoint_time;
+		last_checkpoint_time = current_time;
 		
 		if(current_analysis_time % 100 === 0)
-			console.log("Analysis time: " + current_analysis_time + " " + message_array.length + " " + current_righthand_index);
-		
-		if(first_iteration){
-			try{
-				while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) <= current_analysis_time)
-					current_righthand_index++;
-				console.log("First righthand index: " + current_righthand_index);
-			} catch(error) {
-				console.log(error);
-				console.log(message_array[current_righthand_index]);
-				console.log("Current righthand index: " + current_righthand_index + ", array max index: " + (message_array.length - 1))
-				return;
-			}
-		}
-		
-		current_analysis_time++;
-		
-		while(!(current_righthand_index === 0)){
-			message_array.shift();
-			current_righthand_index--;
-		}
-		
-		while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) === current_analysis_time)
-			current_righthand_index++;
-		
-		current_time = Date.now();
-		console.log("Checkpoint 3: " + current_time);
-		if(current_time > last_checkpoint_time)
-			analysis_time_changes[2]+= current_time - last_checkpoint_time;
-		last_checkpoint_time = current_time;
+			update_main_menu(current_analysis_time);
 	}
-	
-	current_time = Date.now();
-	console.log("Checkpoint 4: " + current_time);
-	if(current_time > last_checkpoint_time)
-		analysis_time_changes[3]+= current_time - last_checkpoint_time;
-	last_checkpoint_time = current_time;
-	
-	if(current_analysis_time % 100 === 0)
-		update_main_menu(current_analysis_time);
-	
-	
 	current_time = Date.now();
 	console.log("Checkpoint 5: " + current_time);
 	if(current_time > last_checkpoint_time)
 		analysis_time_changes[4]+= current_time - last_checkpoint_time;
 	last_checkpoint_time = current_time;
 	
-	setTimeout(analyze_messages, 1, current_analysis_time, current_righthand_index, analysis_time_width, false, iteration_count + 1);
+	setTimeout(analyze_messages, 0, current_analysis_time, current_righthand_index, analysis_time_width, false, iteration_count + 1, group_counts);
 	
 	current_time = Date.now();
 	console.log("Checkpoint 6: " + current_time);
