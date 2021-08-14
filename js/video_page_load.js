@@ -22,7 +22,8 @@ const default_settings_groups = [{"Name": "Default",
 								  "Time before trend": 15, 
 								  "Sensitivity": 0.5, 
 								  "Regex filter": new RegExp(""), 
-								  "Text to match": [{"String/Regex": "String", "Text": "草"}, 
+								  "Text to match": [{"String/Regex": "String", "Text": "草"},
+													{"String/Regex": "String", "Text": ":virtualhug:"},								  
 													{"String/Regex": "String", "Text": "待機"},
 													{"String/Regex": "String", "Text": "ちょこん"}]}];
 const default_settings_sets = [default_settings_groups];
@@ -136,10 +137,8 @@ function get_initial_continuation_ID() {
 	return fetch(window.location.href)
 	.then(
 		(response) => {
-			if(response.status !== 200) {
-				console.log("Livestream Highlighter: Error on retrieving initial continuation ID. Error code: " + response.status)
-				return;
-			}
+			if(response.status !== 200)
+				throw "Livestream Highlighter: Error on retrieving initial continuation ID. Error code: " + response.status;
 			return response.text();
 		})
 	.then(
@@ -248,28 +247,45 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				console.log("Analysis time: " + current_analysis_time + " " + message_array.length + " " + current_righthand_index);
 			
 			if(first_iteration){
+				console.log(message_array);
+				console.log("Position 1: [" + current_righthand_index + "]")
+				console.log(message_array[0]);
 				try{
-					while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) <= current_analysis_time + analysis_time_width){
+					while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) < current_analysis_time + analysis_time_width){
 						//Filtering and trend matching for first iteration
 						console.log("Current righthand index: " + current_righthand_index + " at time " + message_array[current_righthand_index].timestampText.simpleText);
 						for(let i = 0; i < settings_groups.length; i++){
 							if(settings_groups[i]["Regex filter"].test(message_array[current_righthand_index])){
+								console.log("Position 2: [" + current_righthand_index + "]")
+								console.log(message_array[0]);
 								console.log("Passed Regex filter");
 								for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
 									for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
 										let message_part = "";
+										console.log("Position 3: [" + current_righthand_index + "]")
+										console.log(message_array[0]);
+										console.log("Position 4: [" + current_righthand_index + "]")
+										console.log(message_array[current_righthand_index]);
 										if(message_array[current_righthand_index].message.runs[part_of_message].text)
 											message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
 										else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
-											message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length];
+											message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
+										else
+											continue;
 										
-										console.log("Current message part: " + message_part);
+										console.log("Current message part: " + message_part)
 										
-										if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part))
+										if(!message_part)
+											console.log(message_array[current_righthand_index])
+										
+										if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
 											group_analysis_variables[i].text_match_count += 1;
+											break;
+										}
 										else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
 											console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
 											group_analysis_variables[i].text_match_count += 1;
+											break;
 										}
 									}
 								}
@@ -288,20 +304,84 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				}
 			}
 			
-			for(group in settings_groups){
-				//TODO: Trend determining logic for iterations past the first one.
+			for(let group_index = 0; group_index < group_analysis_variables.length; group_index++){
+				console.log("Trend logic: Group [" + group_index + "] - " + group_analysis_variables[group_index].text_match_count + " : " + group_analysis_variables[group_index].filter_match_count);
+				if(group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count > settings_groups[group_index]["Sensitivity"])
+					console.log("Trend detected at " + current_analysis_time + " - " + group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count + " - " + settings_groups[group_index]["Name"]);
 			}
 			
 			current_analysis_time++;
 			
 			while(!(current_righthand_index === 0)){
-				//TODO: Check for regex filter match and text match and decrease counts appropriately
+				for(let i = 0; i < settings_groups.length; i++){
+					if(settings_groups[i]["Regex filter"].test(message_array[current_righthand_index])){
+						console.log("Passed Regex filter");
+						for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
+							for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
+								let message_part = "";
+								if(message_array[current_righthand_index].message.runs[part_of_message].text)
+									message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
+								else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
+									message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
+								else
+									continue;
+								
+								console.log("Current message part: " + message_part)
+								
+								if(!message_part)
+									console.log(message_array[current_righthand_index])
+								if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
+									group_analysis_variables[i].text_match_count -= 1;
+									break;
+								}
+								else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
+									console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
+									group_analysis_variables[i].text_match_count -= 1;
+									break;
+								}
+							}
+						}
+						group_analysis_variables[i].filter_match_count -= 1;
+					}
+				}
+				
 				message_array.shift();
 				current_righthand_index--;
 			}
 			
 			while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) === current_analysis_time + analysis_time_width){
-				//TODO: Check for regex filter match and text match and increase counts appropriately like in initial iteration logic
+				for(let i = 0; i < settings_groups.length; i++){
+					if(settings_groups[i]["Regex filter"].test(message_array[current_righthand_index])){
+						console.log("Passed Regex filter");
+						for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
+							for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
+								let message_part = "";
+								if(message_array[current_righthand_index].message.runs[part_of_message].text)
+									message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
+								else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
+									message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
+								else
+									continue;
+								
+								console.log("Current message part: " + message_part)
+								
+								if(!message_part)
+									console.log(message_array[current_righthand_index])
+								if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
+									group_analysis_variables[i].text_match_count += 1;
+									break;
+								}
+								else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
+									console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
+									group_analysis_variables[i].text_match_count += 1;
+									break;
+								}
+							}
+						}
+						group_analysis_variables[i].filter_match_count += 1;
+					}
+				}
+				
 				current_righthand_index++;
 			}
 			
@@ -368,7 +448,7 @@ async function highlights_button_pressed() {
 //Sometimes, DOM insertion fails because the page loads too slowly. This listener  
 //prevents this by checking for failure twice a second for 30 seconds
 window.addEventListener("load", () => {
-	if(!document.getElementById("highlights_area") && document.getElementById("chat")){
+	if(!document.getElementById("highlights_area") && document.getElementById("chat") && document.getElementById("comments")){
 		console.log("Livestream Highlighter: Inserting Highlights Area");
 		recommended_section = document.getElementById("related");
 		document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section)
@@ -376,7 +456,7 @@ window.addEventListener("load", () => {
 	
 	let retry_count = 0;
 	var retry_interval = setInterval(() => {
-		if(!document.getElementById("highlights_area") && document.getElementById("chat")){
+		if(!document.getElementById("highlights_area") && document.getElementById("chat") && document.getElementById("comments")){
 			console.log("Livestream Highlighter: Inserting Highlights Area");
 			recommended_section = document.getElementById("related");
 			document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section)
