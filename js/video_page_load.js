@@ -1,5 +1,10 @@
 console.log("Livestream Highlighter: Content script loaded")
 
+let root_url = window.location.href.split("?");
+for(const i in root_url)
+	if(root_url[i].substr(0,2) === "v=")
+		root_url = root_url[0] + "?" + root_url[i];
+
 //0=Initial, 1=Gathering messages, 2=Messages gathered
 let current_gathering_state = 0;
 //0=Initial, 1=Analyzing messages, 2=Analysis finished
@@ -8,11 +13,31 @@ let current_analysis_state = 0;
 let menu_is_open = false;
 let settings_menu_is_open = false;
 const video_length = timestamp_to_seconds(document.getElementsByClassName("ytp-time-duration")[0].textContent);;
+console.log("video_length: " + video_length);
 let recommended_section = null;
 let message_array = [];
 let latest_gathering_message_time = null;
 //Format: {"group":"Kusa", "start_time":10, "end_time": 40}
 let analysis_results = [];
+
+chrome.storage.local.get("livestream_highlighter_analysis_results", (results) => {
+	console.log(results)
+	if(results["livestream_highlighter_analysis_results"] !== null && results["livestream_highlighter_analysis_results"][0] === root_url){
+		current_gathering_state = 2;
+		current_analysis_state = 2;
+		analysis_results = results["livestream_highlighter_analysis_results"][1]
+	}
+	//chrome.storage.local.set({"livestream_highlighter_analysis_results": null});
+	//chrome.storage.local.set({"livestream_highlighter_analysis_results": [root_url, analysis_results]});
+})
+
+//Resets the variable for determining whether or not you came to the page from clicking a highlight timestamp
+chrome.storage.local.get("livestream_highlighter_timestamp_click", (results) => {
+	if(results["livestream_highlighter_timestamp_click"] === true){
+		results["livestream_highlighter_timestamp_click"] = false;
+		highlights_button_pressed();
+	}
+})
 
 //DEBUGGING USE
 let analysis_time_changes = [0, 0, 0, 0, 0, 0];
@@ -23,8 +48,13 @@ const default_settings_groups = [{"Name": "Default",
 								  "Sensitivity": 0.5, 
 								  "Regex filter": new RegExp(""), 
 								  "Text to match": [{"String/Regex": "String", "Text": "草"},
-													{"String/Regex": "String", "Text": ":virtualhug:"},								  
-													{"String/Regex": "String", "Text": "待機"},
+													{"String/Regex": "String", "Text": ":virtualhug:"}]},
+								 {"Name": "Default2", 
+								  "Enabled": true, 
+								  "Time before trend": 15, 
+								  "Sensitivity": 0.5, 
+								  "Regex filter": new RegExp(""), 
+								  "Text to match": [{"String/Regex": "String", "Text": "待機"},
 													{"String/Regex": "String", "Text": "ちょこん"}]}];
 const default_settings_sets = [default_settings_groups];
 
@@ -84,9 +114,12 @@ save_settings_button.textContent = "DONE";
 save_settings_button.addEventListener("click", () => {
 	settings_menu_is_open = false;
 	highlights_area.removeChild(settings_menu);
+	chrome.storage.local.set({"livestream_highlighter_analysis_results": null});
+	//TODO: Reanalyze on settings changes
 	update_main_menu();
 })
 
+//Returns a number of seconds from a 00:00:00 formatted timestamp.
 function timestamp_to_seconds(timestamp) {
 	timestamp = timestamp.split(":");
 	if(timestamp[0].substr(0, 1) === "-"){
@@ -102,6 +135,25 @@ function timestamp_to_seconds(timestamp) {
 	}
 }
 
+//Returns a 00:00:00 formatted timestamp from a number of seconds.
+function seconds_to_timestamp(seconds) {
+	let negative = (seconds < 0) ? true : false;
+	seconds = Math.abs(seconds);
+	
+	let seconds_minutes_hours = [seconds % 60];
+	seconds_minutes_hours.push(((seconds - seconds_minutes_hours[0]) / 60) % 60);
+	seconds_minutes_hours.push((seconds - seconds_minutes_hours[1]*60 - seconds_minutes_hours[0]) / 3600);
+	
+	for(let i = 0; i < 3; i++)
+		if(seconds_minutes_hours[i] < 10)
+			seconds_minutes_hours[i] = "0" + seconds_minutes_hours[i];
+	
+	if(negative)
+		return "-" + seconds_minutes_hours[2] + ":" + seconds_minutes_hours[1] + ":" + seconds_minutes_hours[0];
+	else
+		return seconds_minutes_hours[2] + ":" + seconds_minutes_hours[1] + ":" + seconds_minutes_hours[0];
+}
+
 //Updates what's shown on the main menu according to the current gathering and analysis states
 function update_main_menu(current_analysis_message_time) {
 	if(current_gathering_state === 1)
@@ -114,18 +166,28 @@ function update_main_menu(current_analysis_message_time) {
 	highlights_menu.innerHTML = "";
 	if(!settings_menu_is_open)
 		highlights_menu.appendChild(settings_button);
-	highlights_menu.appendChild(highlights_menu_status_message);
-	append_highlight_moments();
+	if(current_analysis_state !== 2)
+		highlights_menu.appendChild(highlights_menu_status_message);
+	if(current_analysis_state === 2)
+		append_highlight_moments();
 }
 
 function append_highlight_moments() {
 	for(index in analysis_results){
 		const highlight_moment = document.createElement("div");
 		highlight_moment.className = "highlight_moment";
+		if(index === "0")
+			highlight_moment.className = "highlight_moment first_highlight";
 		
 		const timestamp_link = document.createElement("a");
 		highlight_moment.appendChild(timestamp_link);
-		timestamp_link.textContent = analysis_results[index].start_time + " - " + analysis_results[index].end_time;
+		for(const group_index in settings_groups){
+			if(settings_groups[group_index]["Name"] === analysis_results[index].group){
+				timestamp_link.textContent = seconds_to_timestamp(analysis_results[index].start_time - settings_groups[group_index]["Time before trend"]) + " - " + seconds_to_timestamp(analysis_results[index].end_time);
+				//TODO: onClick for timestamps. chrome.storage.local.set({"livestream_highlighter_timestamp_click" : true});
+				break;
+			}
+		}
 		timestamp_link.className = "timestamp_link";
 		timestamp_link.href = "";
 		
@@ -133,7 +195,6 @@ function append_highlight_moments() {
 		highlight_moment.appendChild(highlight_group);
 		highlight_group.textContent = "  -  "+ analysis_results[index].group;
 		highlight_group.className = "highlight_group_text";
-
 		highlights_menu.appendChild(highlight_moment);
 	}
 	
@@ -239,11 +300,12 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			console.log("Current Second: " + current_analysis_time);
 			current_analysis_state = 2;
 			console.log(analysis_time_changes);
+			chrome.storage.local.set({"livestream_highlighter_analysis_results": [root_url, analysis_results]});
 			update_main_menu();
 			return;
 		}
 		
-		if(current_gathering_state === 2 || latest_gathering_message_time > current_analysis_time + analysis_time_width){
+		if(current_gathering_state === 2 || latest_gathering_message_time > current_analysis_time + analysis_time_width + 1){
 			current_time = Date.now();
 			console.log("Checkpoint 2: " + current_time);
 			if(current_time > last_checkpoint_time)
@@ -258,7 +320,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				console.log("Position 1: [" + current_righthand_index + "]")
 				console.log(message_array[0]);
 				try{
-					while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) < current_analysis_time + analysis_time_width){
+					while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) <= current_analysis_time + analysis_time_width){
 						//Filtering and trend matching for first iteration
 						console.log("Current righthand index: " + current_righthand_index + " at time " + message_array[current_righthand_index].timestampText.simpleText);
 						
@@ -315,14 +377,24 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			
 			for(let group_index = 0; group_index < group_analysis_variables.length; group_index++){
 				console.log("Trend logic: Group [" + group_index + "] - " + group_analysis_variables[group_index].text_match_count + " : " + group_analysis_variables[group_index].filter_match_count);
-				if(group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count >= settings_groups[group_index]["Sensitivity"])
+				if(group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count >= settings_groups[group_index]["Sensitivity"]){
 					console.log("Trend detected at " + current_analysis_time + " - " + group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count + " - " + settings_groups[group_index]["Name"]);
+					if(group_analysis_variables[group_index].trend_start_time === null)
+						group_analysis_variables[group_index].trend_start_time = current_analysis_time;
+				} else {
+					if(group_analysis_variables[group_index].trend_start_time !== null){
+						analysis_results.push({"group": settings_groups[group_index]["Name"], "start_time": group_analysis_variables[group_index].trend_start_time, "end_time": current_analysis_time});
+						group_analysis_variables[group_index].trend_start_time = null;
+					}
+				}
 			}
 			
-			console.log("Incrementing analysis time: " + current_analysis_time++);
+			current_analysis_time++;
+			console.log("Incrementing analysis time: " + current_analysis_time);
 			
 			try{
-				console.log("DEBUGGING BEFORE LEFTSIDE: [" + current_righthand_index + "] - " + timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) + " =?= " + (current_analysis_time + analysis_time_width));
+				if(current_gathering_state !== 2 || current_righthand_index !== message_array.length)
+					console.log("DEBUGGING BEFORE LEFTSIDE: [" + current_righthand_index + "] - " + timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) + " =?= " + (current_analysis_time + analysis_time_width));
 			} catch (error) {
 				console.log("Error: " + error);
 				console.log("current_gathering_state: " + 2);
@@ -368,8 +440,8 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				console.log(message_array[0]);
 				console.log("current_righthand_index: " + current_righthand_index);
 				console.log("current_analysis_time: " + current_analysis_time)
-				message_array.shift();
-					current_righthand_index--;
+				console.log(message_array.shift());
+				current_righthand_index--;
 				console.log(message_array);
 				console.log(message_array[0]);
 				console.log("current_righthand_index: " + current_righthand_index);
@@ -377,7 +449,8 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			}
 			
 			try {
-				console.log("DEBUGGING BEFORE RIGHTSIDE: [" + current_righthand_index + "] - " + timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) + " =?= " + (current_analysis_time + analysis_time_width));
+				if(current_gathering_state !== 2 || current_righthand_index !== message_array.length)
+					console.log("DEBUGGING BEFORE RIGHTSIDE: [" + current_righthand_index + "] - " + timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) + " =?= " + (current_analysis_time + analysis_time_width));
 			} catch (error) {
 				console.log("Error: " + error);
 				console.log("current_gathering_state: " + 2);
@@ -426,10 +499,12 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				current_righthand_index++;
 			}
 			
-			//TODO: Test righthand index accuracy
 			console.log("DEBUGGING AFTER RIGHTSIDE: current_righthand_index: " + current_righthand_index);
-			console.log(message_array[current_righthand_index]);
+			console.log("Current gathering state: " + current_gathering_state);
+			console.log("Latest gathered message time: " + latest_gathering_message_time);
 			console.log(message_array[current_righthand_index - 1]);
+			console.log(message_array[current_righthand_index]);
+			
 			
 			current_time = Date.now();
 			console.log("Checkpoint 3: " + current_time);
@@ -437,6 +512,8 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				analysis_time_changes[2]+= current_time - last_checkpoint_time;
 			last_checkpoint_time = current_time;
 		}
+		else 	//Breaks loop when analysis has caught up to gathering and needs more messages to arrive first
+			break;
 		
 		current_time = Date.now();
 		console.log("Checkpoint 4: " + current_time);
@@ -462,6 +539,8 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 	last_checkpoint_time = current_time;
 }
 
+
+
 async function highlights_button_pressed() {
 	console.log("Highlights button pressed");
 	if(menu_is_open){
@@ -485,8 +564,8 @@ async function highlights_button_pressed() {
 		await get_next_continuation(initial_continuation_id, 0);
 		
 		update_main_menu();
-		append_highlight_moments();
 	} else {
+		update_main_menu();
 		console.log("Route 2")
 	}
 }
