@@ -6,7 +6,7 @@
 	
 	"permissions": ["activeTab", "storage"],
 	"content_scripts": [{
-		"matches": ["*://www.youtube.com/watch?v=*"],
+		"matches": ["*://www.youtube.com/watch?v=*", "*://www.youtube.com/watch?t=*"],
 		"all_frames": true,
 		"run_at": "document_end",
 		"js": ["./js/video_page_load.js"],
