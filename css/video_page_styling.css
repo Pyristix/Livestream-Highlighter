@@ -11,8 +11,12 @@
 	white-space: pre-wrap;
 }
 
-.first_highlight{
+.first_highlight {
 	margin-top: 20px;
+}
+
+.progress_timestamps {
+	opacity: 0.5;
 }
 
 .timestamp_link {
@@ -49,9 +53,13 @@
 }
 
 #highlights_menu_status_message {
+	position: relative;
 	font-size: 15px;
-	padding-top: 140px;
+	margin-top: 20px;
+	padding-bottom: 5px;
+	width: 225px;
 	text-align: center;
+	left: 40px;
 	color: black;
 }
 
