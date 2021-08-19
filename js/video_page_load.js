@@ -13,30 +13,6 @@ let video_length = null;
 let recommended_section = null;
 let message_array = [];
 let latest_gathering_message_time = null;
-//Format: {"group":"Kusa", "start_time":10, "end_time": 40}
-let analysis_results = [];
-
-//Loads previously analyzed results
-chrome.storage.local.get("livestream_highlighter_analysis_results", (results) => {
-	console.log(results)
-	if(results["livestream_highlighter_analysis_results"] !== null && results["livestream_highlighter_analysis_results"][0] === root_url){
-		current_gathering_state = 2;
-		current_analysis_state = 2;
-		analysis_results = results["livestream_highlighter_analysis_results"][1]
-		
-		//Resets the variable for determining whether or not you came to the page from clicking a highlight timestamp
-		chrome.storage.local.get("livestream_highlighter_timestamp_click", (results) => {
-			if(results["livestream_highlighter_timestamp_click"] === true){
-				chrome.storage.local.set({"livestream_highlighter_timestamp_click" : false});
-				highlights_button_pressed();
-			}
-		})
-	}
-	//chrome.storage.local.set({"livestream_highlighter_analysis_results": null});
-	//chrome.storage.local.set({"livestream_highlighter_analysis_results": [root_url, analysis_results]});
-})
-
-
 
 //DEBUGGING USE
 let analysis_time_changes = [0, 0, 0, 0, 0, 0];
@@ -94,14 +70,51 @@ chrome.storage.local.get("livestream_highlighter_settings", (results) => {
 	console.log(results)
 })
 
-
-
 //DEBUGGING USE
 settings_groups = default_settings_groups;
 settings_sets = default_settings_sets;
 
 console.log(settings_sets);
 console.log(settings_groups);
+
+
+
+
+//Format: {"group":"Kusa", "start_time":10, "end_time": 40}
+let analysis_results = [];
+
+//Default analysis variables that act like parameters for analyze_messages
+let analysis_variables = [-1, 0, 20, 1, []];
+
+//Empty defaults for group_analysis_variables for each setting
+for(i in settings_groups){
+	analysis_variables[4].push({
+						"filter_match_count": 0, 
+						"text_match_count": 0, 
+						"trend_start_time": null
+					   });
+}
+
+
+//Loads previously analyzed results
+chrome.storage.local.get("livestream_highlighter_analysis_results", (results) => {
+	console.log(results)
+	if(results["livestream_highlighter_analysis_results"] !== null && results["livestream_highlighter_analysis_results"][0] === root_url){
+		current_gathering_state = 2;
+		current_analysis_state = 2;
+		analysis_results = results["livestream_highlighter_analysis_results"][1]
+		
+		//Resets the variable for determining whether or not you came to the page from clicking a highlight timestamp
+		chrome.storage.local.get("livestream_highlighter_timestamp_click", (results) => {
+			if(results["livestream_highlighter_timestamp_click"] === true){
+				chrome.storage.local.set({"livestream_highlighter_timestamp_click" : false});
+				highlights_button_pressed();
+			}
+		})
+	}
+	//chrome.storage.local.set({"livestream_highlighter_analysis_results": null});
+	//chrome.storage.local.set({"livestream_highlighter_analysis_results": [root_url, analysis_results]});
+})
 
 
 
@@ -368,18 +381,7 @@ function get_next_continuation(continuation_id, iteration_count) {
 
 			if(current_analysis_state === 0){
 				current_analysis_state = 1;
-				
-				let group_analysis_variables = []
-				
-				for(i in settings_groups){
-					group_analysis_variables.push({
-										"filter_match_count": 0, 
-										"text_match_count": 0, 
-										"trend_start_time": null
-									   });
-					
-				}
-				analyze_messages(-1, 0, 20, 1, group_analysis_variables);
+				analyze_messages(analysis_variables[0], analysis_variables[1], analysis_variables[2], analysis_variables[3], analysis_variables[4]);
 			}
 			
 			try{
