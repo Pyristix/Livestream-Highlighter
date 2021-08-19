@@ -61,6 +61,12 @@ const default_settings_groups = [{"Name": "Funny",
 								  "Sensitivity": 0.5, 
 								  "Regex filter": new RegExp("/[一-龠]|[ぁ-ゔ]|[ァ-ヴー]|[ａ-ｚＡ-Ｚ０-９]|[々〆〤]/u"), 
 								  "Text to match": [{"String/Regex": "String", "Text": "ちょこん"}]},
+								 {"Name": "ちょこん2", 
+								  "Enabled": true, 
+								  "Time before trend": 15, 
+								  "Sensitivity": 0.5, 
+								  "Regex filter": new RegExp(""), 
+								  "Text to match": [{"String/Regex": "String", "Text": "ちょこん"}]},
 								 {"Name": "Nandawa", 
 								  "Enabled": true, 
 								  "Time before trend": 15, 
@@ -373,7 +379,7 @@ function get_next_continuation(continuation_id, iteration_count) {
 									   });
 					
 				}
-				analyze_messages(0, 0, 20, true, 1, group_analysis_variables);
+				analyze_messages(-1, 0, 20, 1, group_analysis_variables);
 			}
 			
 			try{
@@ -390,7 +396,7 @@ function get_next_continuation(continuation_id, iteration_count) {
 	);
 }
 
-function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, first_iteration, iteration_count, group_analysis_variables) {
+function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables) {
 	let current_time = Date.now();
 	console.log("Checkpoint 1: " + current_time);
 	last_checkpoint_time = current_time;
@@ -422,109 +428,104 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			if(current_analysis_time % 100 === 0)
 				console.log("Analysis time: " + current_analysis_time + " " + message_array.length + " " + current_righthand_index);
 			
-			console.log("first_iteration?: " + first_iteration)
-			//Finds the index of the first message past the initial value of current_analysis_time
-			if(first_iteration){
-				console.log(message_array);
-				console.log("Position 1: [" + current_righthand_index + "]")
-				console.log(message_array[0]);
-				try{
-					while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) <= current_analysis_time + analysis_time_width){
-						//Filtering and trend matching for first iteration
-						console.log("Current righthand index: " + current_righthand_index + " at time " + message_array[current_righthand_index].timestampText.simpleText);
-						
-						
-						for(let i = 0; i < settings_groups.length; i++){
-							let passes_regex_filter = false;
-							
-							//Looks through message parts to check to see if the message matches the current group's filter
-							for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
-								let message_part = "";
-								if(message_array[current_righthand_index].message.runs[part_of_message].text)
-									message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
-								else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
-									message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
-								else
-									continue;
-								
-								if(!message_part)
-									console.log(message_array[current_righthand_index])
-								if(settings_groups[i]["Regex filter"].test(message_part)){
-									group_analysis_variables[i].filter_match_count += 1;
-									passes_regex_filter = true;
-									console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
-									console.log(message_array[current_righthand_index]);
-									break;
-								}
-							}
-							
-							//Looks through message parts for trend indicator text match
-							if(passes_regex_filter){
-								let match_found = false;
-								for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
-									for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
-										let message_part = "";
-										console.log("Position 3: [" + current_righthand_index + "]")
-										console.log(message_array[0]);
-										console.log("Position 4: [" + current_righthand_index + "]")
-										console.log(message_array[current_righthand_index]);
-										if(message_array[current_righthand_index].message.runs[part_of_message].text)
-											message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
-										else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
-											message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
-										else
-											continue;
-										
-										console.log("Current message part: " + message_part)
-										
-										if(!message_part)
-											console.log(message_array[current_righthand_index])
-										
-										if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
-											group_analysis_variables[i].text_match_count += 1;
-											match_found = true;
-											break;
-										}
-										else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
-											console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
-											group_analysis_variables[i].text_match_count += 1;
-											match_found = true;
-											break;
-										}
-									}
-									if(match_found)
-										break;
-								}
-							}
-						}
-						current_righthand_index++;
-					}	
-					first_iteration = false;
-					console.log("First righthand index: " + current_righthand_index);
-				} catch(error) {
-					console.log(error);
-					console.log(message_array[current_righthand_index]);
-					console.log("Current righthand index: " + current_righthand_index + ", array max index: " + (message_array.length - 1))
-					return;
-				}
-			}
 			
-			for(let group_index = 0; group_index < group_analysis_variables.length; group_index++){
-				console.log("Trend logic: Group [" + group_index + "] - " + group_analysis_variables[group_index].text_match_count + " : " + group_analysis_variables[group_index].filter_match_count);
-				if(group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count >= settings_groups[group_index]["Sensitivity"]){
-					console.log("Trend detected at " + current_analysis_time + " - " + group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count + " - " + settings_groups[group_index]["Name"]);
-					if(group_analysis_variables[group_index].trend_start_time === null)
-						group_analysis_variables[group_index].trend_start_time = current_analysis_time;
-				} else {
-					if(group_analysis_variables[group_index].trend_start_time !== null){
-						analysis_results.push({"group": settings_groups[group_index]["Name"], "start_time": group_analysis_variables[group_index].trend_start_time, "end_time": current_analysis_time});
-						group_analysis_variables[group_index].trend_start_time = null;
-					}
-				}
-			}
 			
 			current_analysis_time++;
 			console.log("Incrementing analysis time: " + current_analysis_time);
+			
+			
+			
+			try {
+				if(current_gathering_state !== 2 || current_righthand_index !== message_array.length)
+					console.log("DEBUGGING BEFORE RIGHTSIDE: [" + current_righthand_index + "] - " + timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) + " =?= " + (current_analysis_time + analysis_time_width));
+			} catch (error) {
+				console.log("Error: " + error);
+				console.log("current_gathering_state: " + 2);
+				console.log("latest_gathering_message_time: " + latest_gathering_message_time);
+				console.log("analysis time range limit: " + (current_analysis_time + analysis_time_width));
+				console.log("current_righthand_index: " + current_righthand_index + "\message_array length: " + message_array.length);
+				return;
+			}
+			
+			//Finds the index of the first message that isn't the current analysis time + analysis width and sets it to current_righthand_index
+			try{
+				while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) <= current_analysis_time + analysis_time_width){
+					console.log("Index heading right! Currently at " + current_righthand_index);
+					
+					for(let i = 0; i < settings_groups.length; i++){
+						let passes_regex_filter = false;
+						
+						//Looks through message parts to check to see if the message matches the current group's filter
+						for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
+							let message_part = "";
+							if(message_array[current_righthand_index].message.runs[part_of_message].text)
+								message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
+							else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
+								message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
+							else
+								continue;
+							
+							if(!message_part)
+								console.log(message_array[current_righthand_index])
+							if(settings_groups[i]["Regex filter"].test(message_part)){
+								group_analysis_variables[i].filter_match_count += 1;
+								passes_regex_filter = true;
+								console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
+								console.log(message_array[current_righthand_index]);
+								break;
+							}
+						}
+						
+						//Looks through message parts for trend indicator text match
+						if(passes_regex_filter){
+							let match_found = false;
+							for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
+								
+								for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
+									let message_part = "";
+									if(message_array[current_righthand_index].message.runs[part_of_message].text)
+										message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
+									else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
+										message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
+									else
+										continue;
+									
+									console.log("Current message part: " + message_part)
+									
+									if(!message_part)
+										console.log(message_array[current_righthand_index])
+									if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
+										group_analysis_variables[i].text_match_count += 1;
+										match_found = true;
+										break;
+									}
+									else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
+										console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
+										group_analysis_variables[i].text_match_count += 1;
+										match_found = true;
+										break;
+									}
+								}
+								if(match_found)
+									break;
+							}
+						}
+					}
+					current_righthand_index++;
+				}
+			} catch (error) {
+				console.log(error);
+				console.log(settings_groups);
+				return;
+			}
+			
+			console.log("DEBUGGING AFTER RIGHTSIDE: current_righthand_index: " + current_righthand_index);
+			console.log("Current gathering state: " + current_gathering_state);
+			console.log("Latest gathered message time: " + latest_gathering_message_time);
+			console.log(message_array[current_righthand_index - 1]);
+			console.log(message_array[current_righthand_index]);
+			
+			
 			
 			try{
 				if(current_gathering_state !== 2 || current_righthand_index !== message_array.length)
@@ -607,97 +608,22 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				console.log("current_analysis_time: " + current_analysis_time)
 			}
 			
-			try {
-				if(current_gathering_state !== 2 || current_righthand_index !== message_array.length)
-					console.log("DEBUGGING BEFORE RIGHTSIDE: [" + current_righthand_index + "] - " + timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) + " =?= " + (current_analysis_time + analysis_time_width));
-			} catch (error) {
-				console.log("Error: " + error);
-				console.log("current_gathering_state: " + 2);
-				console.log("latest_gathering_message_time: " + latest_gathering_message_time);
-				console.log("analysis time range limit: " + (current_analysis_time + analysis_time_width));
-				console.log("current_righthand_index: " + current_righthand_index + "\message_array length: " + message_array.length);
-				return;
-			}
 			
-			//Finds the index of the first message that isn't the current analysis time + analysis width and sets it to current_righthand_index
-			try{
-			while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) === current_analysis_time + analysis_time_width){
-				console.log("Index heading right! Currently at " + current_righthand_index);
-				
-				for(let i = 0; i < settings_groups.length; i++){
-					let passes_regex_filter = false;
-					
-					//Looks through message parts to check to see if the message matches the current group's filter
-					for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
-						let message_part = "";
-						if(message_array[current_righthand_index].message.runs[part_of_message].text)
-							message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
-						else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
-							message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
-						else
-							continue;
-						
-						if(!message_part)
-							console.log(message_array[current_righthand_index])
-						if(settings_groups[i]["Regex filter"].test(message_part)){
-							group_analysis_variables[i].filter_match_count += 1;
-							passes_regex_filter = true;
-							console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
-							console.log(message_array[current_righthand_index]);
-							break;
-						}
-					}
-					
-					//Looks through message parts for trend indicator text match
-					if(passes_regex_filter){
-						let match_found = false;
-						for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
-							
-							for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
-								let message_part = "";
-								if(message_array[current_righthand_index].message.runs[part_of_message].text)
-									message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
-								else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
-									message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
-								else
-									continue;
-								
-								console.log("Current message part: " + message_part)
-								
-								if(!message_part)
-									console.log(message_array[current_righthand_index])
-								if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
-									group_analysis_variables[i].text_match_count += 1;
-									match_found = true;
-									break;
-								}
-								else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
-									console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
-									group_analysis_variables[i].text_match_count += 1;
-									match_found = true;
-									break;
-								}
-							}
-							if(match_found)
-								break;
-						}
+			
+			//Trend finding logic
+			for(let group_index = 0; group_index < group_analysis_variables.length; group_index++){
+				console.log("Trend logic: Group [" + group_index + "] - " + group_analysis_variables[group_index].text_match_count + " : " + group_analysis_variables[group_index].filter_match_count);
+				if(group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count >= settings_groups[group_index]["Sensitivity"]){
+					console.log("Trend detected at " + current_analysis_time + " - " + group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count + " - " + settings_groups[group_index]["Name"]);
+					if(group_analysis_variables[group_index].trend_start_time === null)
+						group_analysis_variables[group_index].trend_start_time = current_analysis_time;
+				} else {
+					if(group_analysis_variables[group_index].trend_start_time !== null){
+						analysis_results.push({"group": settings_groups[group_index]["Name"], "start_time": group_analysis_variables[group_index].trend_start_time, "end_time": current_analysis_time});
+						group_analysis_variables[group_index].trend_start_time = null;
 					}
 				}
-				
-				current_righthand_index++;
 			}
-			} catch (error) {
-				console.log(error);
-				console.log(settings_groups);
-				return;
-			}
-			
-			console.log("DEBUGGING AFTER RIGHTSIDE: current_righthand_index: " + current_righthand_index);
-			console.log("Current gathering state: " + current_gathering_state);
-			console.log("Latest gathered message time: " + latest_gathering_message_time);
-			console.log(message_array[current_righthand_index - 1]);
-			console.log(message_array[current_righthand_index]);
-			
 			
 			current_time = Date.now();
 			console.log("Checkpoint 3: " + current_time);
@@ -723,7 +649,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 		analysis_time_changes[4]+= current_time - last_checkpoint_time;
 	last_checkpoint_time = current_time;
 	
-	setTimeout(analyze_messages, 0, current_analysis_time, current_righthand_index, analysis_time_width, first_iteration, iteration_count + 1, group_analysis_variables);
+	setTimeout(analyze_messages, 0, current_analysis_time, current_righthand_index, analysis_time_width, iteration_count + 1, group_analysis_variables);
 	
 	current_time = Date.now();
 	console.log("Checkpoint 6: " + current_time);
