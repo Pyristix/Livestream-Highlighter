@@ -13,6 +13,7 @@ let video_length = null;
 let recommended_section = null;
 let message_array = [];
 let latest_gathering_message_time = null;
+let next_continuation_id = "";
 
 //DEBUGGING USE
 let analysis_time_changes = [0, 0, 0, 0, 0, 0];
@@ -84,11 +85,12 @@ console.log(settings_groups);
 let analysis_results = [];
 
 //Default analysis variables that act like parameters for analyze_messages
-let analysis_variables = [-1, 0, 20, 1, []];
+//Format: [current_analysis_time, current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables]
+let initial_analysis_variables = [-1, 0, 20, 1, []];
 
 //Empty defaults for group_analysis_variables for each setting
 for(i in settings_groups){
-	analysis_variables[4].push({
+	initial_analysis_variables[4].push({
 						"filter_match_count": 0, 
 						"text_match_count": 0, 
 						"trend_start_time": null
@@ -97,12 +99,12 @@ for(i in settings_groups){
 
 
 //Loads previously analyzed results
-chrome.storage.local.get("livestream_highlighter_analysis_results", (results) => {
+chrome.storage.local.get("livestream_highlighter_progress", (results) => {
 	console.log(results)
-	if(results["livestream_highlighter_analysis_results"] !== null && results["livestream_highlighter_analysis_results"][0] === root_url){
+	if(results["livestream_highlighter_progress"] !== null && results["livestream_highlighter_progress"][0] === root_url){
 		current_gathering_state = 2;
 		current_analysis_state = 2;
-		analysis_results = results["livestream_highlighter_analysis_results"][1]
+		analysis_results = results["livestream_highlighter_progress"][1]
 		
 		//Resets the variable for determining whether or not you came to the page from clicking a highlight timestamp
 		chrome.storage.local.get("livestream_highlighter_timestamp_click", (results) => {
@@ -112,8 +114,8 @@ chrome.storage.local.get("livestream_highlighter_analysis_results", (results) =>
 			}
 		})
 	}
-	//chrome.storage.local.set({"livestream_highlighter_analysis_results": null});
-	//chrome.storage.local.set({"livestream_highlighter_analysis_results": [root_url, analysis_results]});
+	//chrome.storage.local.set({"livestream_highlighter_progress": null});
+	//chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results]});
 })
 
 
@@ -169,7 +171,7 @@ save_settings_button.textContent = "DONE";
 save_settings_button.addEventListener("click", () => {
 	settings_menu_is_open = false;
 	highlights_area.removeChild(settings_menu);
-	chrome.storage.local.set({"livestream_highlighter_analysis_results": null});
+	chrome.storage.local.set({"livestream_highlighter_progress": null});
 	//TODO: Reanalyze on settings changes
 	update_main_menu();
 })
@@ -370,6 +372,11 @@ function get_next_continuation(continuation_id, iteration_count) {
 				return;
 			}
 			
+			
+			if(chat_info.continuations[0].liveChatReplayContinuationData)
+				next_continuation_id = chat_info.continuations[0].liveChatReplayContinuationData.continuation;
+
+			
 			for(const chat_item in chat_info.actions) {
 				if(chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction !== undefined && chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction.item.liveChatTextMessageRenderer !== undefined)
 					message_array.push(chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction.item.liveChatTextMessageRenderer);
@@ -381,19 +388,20 @@ function get_next_continuation(continuation_id, iteration_count) {
 
 			if(current_analysis_state === 0){
 				current_analysis_state = 1;
-				analyze_messages(analysis_variables[0], analysis_variables[1], analysis_variables[2], analysis_variables[3], analysis_variables[4]);
+				analyze_messages(initial_analysis_variables[0], initial_analysis_variables[1], initial_analysis_variables[2], initial_analysis_variables[3], initial_analysis_variables[4]);
 			}
 			
 			try{
 				console.log("[" + iteration_count + "] Continuation ID: " + chat_info.continuations[0].liveChatReplayContinuationData.continuation)
 			} catch(error) {
 				console.log("Reached end of continuations")
+				next_continuation_id = "DONE!";
 				current_gathering_state = 2;
 				return;
 			}
 			
 			if(data)
-				return get_next_continuation(chat_info.continuations[0].liveChatReplayContinuationData.continuation, iteration_count + 1);
+				return get_next_continuation(next_continuation_id, iteration_count + 1);
 		}
 	);
 }
@@ -411,7 +419,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			console.log("Current Second: " + current_analysis_time);
 			current_analysis_state = 2;
 			console.log(analysis_time_changes);
-			chrome.storage.local.set({"livestream_highlighter_analysis_results": [root_url, analysis_results]});
+			chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results]});
 			update_main_menu();
 			console.log(analysis_results);
 			return;
