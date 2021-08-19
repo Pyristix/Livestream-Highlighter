@@ -12,34 +12,13 @@ let settings_menu_is_open = false;
 let video_length = null;
 let recommended_section = null;
 let message_array = [];
-let latest_gathering_message_time = null;
-//Format: {"group":"Kusa", "start_time":10, "end_time": 40}
-let analysis_results = [];
-
-//Loads previously analyzed results
-chrome.storage.local.get("livestream_highlighter_analysis_results", (results) => {
-	console.log(results)
-	if(results["livestream_highlighter_analysis_results"] !== null && results["livestream_highlighter_analysis_results"][0] === root_url){
-		current_gathering_state = 2;
-		current_analysis_state = 2;
-		analysis_results = results["livestream_highlighter_analysis_results"][1]
-		
-		//Resets the variable for determining whether or not you came to the page from clicking a highlight timestamp
-		chrome.storage.local.get("livestream_highlighter_timestamp_click", (results) => {
-			if(results["livestream_highlighter_timestamp_click"] === true){
-				chrome.storage.local.set({"livestream_highlighter_timestamp_click" : false});
-				highlights_button_pressed();
-			}
-		})
-	}
-	//chrome.storage.local.set({"livestream_highlighter_analysis_results": null});
-	//chrome.storage.local.set({"livestream_highlighter_analysis_results": [root_url, analysis_results]});
-})
-
-
+let latest_gathering_message_time = 0;
+let next_continuation_id = "";
 
 //DEBUGGING USE
 let analysis_time_changes = [0, 0, 0, 0, 0, 0];
+
+
 
 const default_settings_groups = [{"Name": "Funny", 
 								  "Enabled": true, 
@@ -61,6 +40,12 @@ const default_settings_groups = [{"Name": "Funny",
 								  "Sensitivity": 0.5, 
 								  "Regex filter": new RegExp("/[一-龠]|[ぁ-ゔ]|[ァ-ヴー]|[ａ-ｚＡ-Ｚ０-９]|[々〆〤]/u"), 
 								  "Text to match": [{"String/Regex": "String", "Text": "ちょこん"}]},
+								 {"Name": "ちょこん2", 
+								  "Enabled": true, 
+								  "Time before trend": 15, 
+								  "Sensitivity": 0.5, 
+								  "Regex filter": new RegExp(""), 
+								  "Text to match": [{"String/Regex": "String", "Text": "ちょこん"}]},
 								 {"Name": "Nandawa", 
 								  "Enabled": true, 
 								  "Time before trend": 15, 
@@ -76,10 +61,10 @@ const default_settings_sets = [{"name" : "Default Settings",
 let settings_sets = [];
 let settings_groups = [];
 
+
+
 //Retrieves stored settings
 //Format of the settings array in storage should be [int for the index of the set in use, {settings_sets}]
-
-
 //load_settings();
 
 //save_settings();
@@ -96,6 +81,66 @@ settings_sets = default_settings_sets;
 
 console.log(settings_sets);
 console.log(settings_groups);
+
+
+
+
+//Format: {"group":"Kusa", "start_time":10, "end_time": 40}
+let analysis_results = [];
+
+//Format: {"current_analysis_time": current_analysis_time, "current_righthand_index": current_righthand_index, "analysis_time_width": analysis_time_width, "iteration_count": iteration_count, "group_analysis_variables": group_analysis_variables}
+let initial_analysis_variables = {"current_analysis_time": -1, "current_righthand_index": 0, "analysis_time_width": 20, "iteration_count": 0, "group_analysis_variables": []};
+
+for(i in settings_groups){
+	initial_analysis_variables["group_analysis_variables"].push({
+						"filter_match_count": 0, 
+						"text_match_count": 0, 
+						"trend_start_time": null
+					   });
+}
+
+//Loads previously analyzed results and progress in gathering and analysis
+//Format for the stored data: [root_url, analysis_results, next_continuation_id, message_array, {parameters of analyze_messages}]
+chrome.storage.local.get("livestream_highlighter_gathering_analysis_progress", (results) => {
+	console.log(results)
+	/*if(results["livestream_highlighter_gathering_analysis_progress"] !== null && results["livestream_highlighter_gathering_analysis_progress"][0] === root_url){
+		analysis_results = results["livestream_highlighter_gathering_analysis_progress"][1];
+		next_continuation_id = results["livestream_highlighter_gathering_analysis_progress"][2]
+		
+		if(next_continuation_id === "DONE!"){ //Signals that gathering has already been finished
+			current_gathering_state = 2;
+		}
+		
+		if(results["livestream_highlighter_gathering_analysis_progress"][5]["current_analysis_time"] === "DONE!"){ //Signals that analysis has already been finished
+			current_analysis_state = 2;
+		}
+		
+		message_array = results["livestream_highlighter_gathering_analysis_progress"][3];
+		video_length = results["livestream_highlighter_gathering_analysis_progress"][4];
+		initial_analysis_variables = results["livestream_highlighter_gathering_analysis_progress"][5];
+		
+		latest_gathering_message_time = timestamp_to_seconds(message_array[message_array.length - 1].timestampText.simpleText);
+		
+		//Resets the variable for determining whether or not you came to the page from clicking a highlight timestamp
+		chrome.storage.local.get("livestream_highlighter_timestamp_click", (results) => {
+			if(results["livestream_highlighter_timestamp_click"] === true){
+				chrome.storage.local.set({"livestream_highlighter_timestamp_click" : false});
+				highlights_button_pressed();
+			}
+		});
+	}*/
+	//The code for setting this data
+	//chrome.storage.local.set({"livestream_highlighter_gathering_analysis_progress": null});
+	//chrome.storage.local.set({"livestream_highlighter_gathering_analysis_progress": [root_url, analysis_results, next_continuation_id, message_array, video_length, {"current_analysis_time": current_analysis_time, "current_righthand_index": current_righthand_index, "analysis_time_width": analysis_time_width, "iteration_count": iteration_count, "group_analysis_variables": group_analysis_variables}]});
+})
+
+
+
+
+
+
+
+
 
 
 
@@ -150,7 +195,7 @@ save_settings_button.textContent = "DONE";
 save_settings_button.addEventListener("click", () => {
 	settings_menu_is_open = false;
 	highlights_area.removeChild(settings_menu);
-	chrome.storage.local.set({"livestream_highlighter_analysis_results": null});
+	chrome.storage.local.set({"livestream_highlighter_gathering_analysis_progress": null});
 	//TODO: Reanalyze on settings changes
 	update_main_menu();
 })
@@ -206,7 +251,6 @@ function load_settings() {
 			console.log("Livestream Highlighter: Settings retrieved");
 		}
 	})
-
 }
 
 //Returns a number of seconds from a 00:00:00 formatted timestamp.
@@ -351,6 +395,12 @@ function get_next_continuation(continuation_id, iteration_count) {
 				return;
 			}
 			
+			try{
+				next_continuation_id = chat_info.continuations[0].liveChatReplayContinuationData.continuation;
+			} catch(error) {
+				console.log("Reached end of continuations")
+			}
+			
 			for(const chat_item in chat_info.actions) {
 				if(chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction !== undefined && chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction.item.liveChatTextMessageRenderer !== undefined)
 					message_array.push(chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction.item.liveChatTextMessageRenderer);
@@ -359,38 +409,23 @@ function get_next_continuation(continuation_id, iteration_count) {
 			console.log(message_array);
 			latest_gathering_message_time = timestamp_to_seconds(message_array[message_array.length - 1].timestampText.simpleText);
 			update_main_menu();
-
-			if(current_analysis_state === 0){
-				current_analysis_state = 1;
-				
-				let group_analysis_variables = []
-				
-				for(i in settings_groups){
-					group_analysis_variables.push({
-										"filter_match_count": 0, 
-										"text_match_count": 0, 
-										"trend_start_time": null
-									   });
-					
-				}
-				analyze_messages(0, 0, 20, true, 1, group_analysis_variables);
-			}
 			
 			try{
 				console.log("[" + iteration_count + "] Continuation ID: " + chat_info.continuations[0].liveChatReplayContinuationData.continuation)
 			} catch(error) {
-				console.log("Reached end of continuations")
+				next_continuation_id = "DONE!"; //Signals that gathering is finished
 				current_gathering_state = 2;
+				update_main_menu();
 				return;
 			}
 			
 			if(data)
-				return get_next_continuation(chat_info.continuations[0].liveChatReplayContinuationData.continuation, iteration_count + 1);
+				return get_next_continuation(next_continuation_id, iteration_count + 1);
 		}
 	);
 }
 
-function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, first_iteration, iteration_count, group_analysis_variables) {
+function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables) {
 	let current_time = Date.now();
 	console.log("Checkpoint 1: " + current_time);
 	last_checkpoint_time = current_time;
@@ -403,7 +438,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			console.log("Current Second: " + current_analysis_time);
 			current_analysis_state = 2;
 			console.log(analysis_time_changes);
-			chrome.storage.local.set({"livestream_highlighter_analysis_results": [root_url, analysis_results]});
+			chrome.storage.local.set({"livestream_highlighter_gathering_analysis_progress": [root_url, analysis_results, next_continuation_id, message_array, video_length, {"current_analysis_time": "DONE!", "current_righthand_index": current_righthand_index, "analysis_time_width": analysis_time_width, "iteration_count": iteration_count, "group_analysis_variables": group_analysis_variables}]});
 			update_main_menu();
 			console.log(analysis_results);
 			return;
@@ -419,113 +454,110 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				analysis_time_changes[1]+= current_time - last_checkpoint_time;
 			last_checkpoint_time = current_time;
 			
-			if(current_analysis_time % 100 === 0)
+			if(current_analysis_time % 10 === 0){
 				console.log("Analysis time: " + current_analysis_time + " " + message_array.length + " " + current_righthand_index);
-			
-			console.log("first_iteration?: " + first_iteration)
-			//Finds the index of the first message past the initial value of current_analysis_time
-			if(first_iteration){
-				console.log(message_array);
-				console.log("Position 1: [" + current_righthand_index + "]")
-				console.log(message_array[0]);
-				try{
-					while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) <= current_analysis_time + analysis_time_width){
-						//Filtering and trend matching for first iteration
-						console.log("Current righthand index: " + current_righthand_index + " at time " + message_array[current_righthand_index].timestampText.simpleText);
-						
-						
-						for(let i = 0; i < settings_groups.length; i++){
-							let passes_regex_filter = false;
-							
-							//Looks through message parts to check to see if the message matches the current group's filter
-							for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
-								let message_part = "";
-								if(message_array[current_righthand_index].message.runs[part_of_message].text)
-									message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
-								else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
-									message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
-								else
-									continue;
-								
-								if(!message_part)
-									console.log(message_array[current_righthand_index])
-								if(settings_groups[i]["Regex filter"].test(message_part)){
-									group_analysis_variables[i].filter_match_count += 1;
-									passes_regex_filter = true;
-									console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
-									console.log(message_array[current_righthand_index]);
-									break;
-								}
-							}
-							
-							//Looks through message parts for trend indicator text match
-							if(passes_regex_filter){
-								let match_found = false;
-								for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
-									for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
-										let message_part = "";
-										console.log("Position 3: [" + current_righthand_index + "]")
-										console.log(message_array[0]);
-										console.log("Position 4: [" + current_righthand_index + "]")
-										console.log(message_array[current_righthand_index]);
-										if(message_array[current_righthand_index].message.runs[part_of_message].text)
-											message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
-										else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
-											message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
-										else
-											continue;
-										
-										console.log("Current message part: " + message_part)
-										
-										if(!message_part)
-											console.log(message_array[current_righthand_index])
-										
-										if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
-											group_analysis_variables[i].text_match_count += 1;
-											match_found = true;
-											break;
-										}
-										else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
-											console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
-											group_analysis_variables[i].text_match_count += 1;
-											match_found = true;
-											break;
-										}
-									}
-									if(match_found)
-										break;
-								}
-							}
-						}
-						current_righthand_index++;
-					}	
-					first_iteration = false;
-					console.log("First righthand index: " + current_righthand_index);
-				} catch(error) {
-					console.log(error);
-					console.log(message_array[current_righthand_index]);
-					console.log("Current righthand index: " + current_righthand_index + ", array max index: " + (message_array.length - 1))
-					return;
-				}
+				//chrome.storage.local.set({"livestream_highlighter_gathering_analysis_progress": [root_url, analysis_results, next_continuation_id, message_array, video_length, {"current_analysis_time": current_analysis_time, "current_righthand_index": current_righthand_index, "analysis_time_width": analysis_time_width, "iteration_count": iteration_count, "group_analysis_variables": group_analysis_variables}]});
 			}
 			
-			for(let group_index = 0; group_index < group_analysis_variables.length; group_index++){
-				console.log("Trend logic: Group [" + group_index + "] - " + group_analysis_variables[group_index].text_match_count + " : " + group_analysis_variables[group_index].filter_match_count);
-				if(group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count >= settings_groups[group_index]["Sensitivity"]){
-					console.log("Trend detected at " + current_analysis_time + " - " + group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count + " - " + settings_groups[group_index]["Name"]);
-					if(group_analysis_variables[group_index].trend_start_time === null)
-						group_analysis_variables[group_index].trend_start_time = current_analysis_time;
-				} else {
-					if(group_analysis_variables[group_index].trend_start_time !== null){
-						analysis_results.push({"group": settings_groups[group_index]["Name"], "start_time": group_analysis_variables[group_index].trend_start_time, "end_time": current_analysis_time});
-						group_analysis_variables[group_index].trend_start_time = null;
-					}
-				}
-			}
 			
 			current_analysis_time++;
 			console.log("Incrementing analysis time: " + current_analysis_time);
 			
+			/* DEBUGGING 
+			try {
+				if(current_gathering_state !== 2 || current_righthand_index !== message_array.length)
+					console.log("DEBUGGING BEFORE RIGHTSIDE: [" + current_righthand_index + "] - " + timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) + " =?= " + (current_analysis_time + analysis_time_width));
+			} catch (error) {
+				console.log("Error: " + error);
+				console.log("current_gathering_state: " + 2);
+				console.log("latest_gathering_message_time: " + latest_gathering_message_time);
+				console.log("analysis time range limit: " + (current_analysis_time + analysis_time_width));
+				console.log("current_righthand_index: " + current_righthand_index + "\message_array length: " + message_array.length);
+				return;
+			}
+			*/
+			
+			//Finds the index of the first message that isn't the current analysis time + analysis width and sets it to current_righthand_index
+			try{
+				while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) <= current_analysis_time + analysis_time_width){
+					//DEBUGGING console.log("Index heading right! Currently at " + current_righthand_index);
+					
+					for(let i = 0; i < settings_groups.length; i++){
+						let passes_regex_filter = false;
+						
+						//Looks through message parts to check to see if the message matches the current group's filter
+						for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
+							let message_part = "";
+							if(message_array[current_righthand_index].message.runs[part_of_message].text)
+								message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
+							else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
+								message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
+							else
+								continue;
+							
+							if(!message_part)
+								console.log(message_array[current_righthand_index])
+							if(settings_groups[i]["Regex filter"].test(message_part)){
+								group_analysis_variables[i].filter_match_count += 1;
+								passes_regex_filter = true;
+								//DEBUGGING console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
+								//DEBUGGING console.log(message_array[current_righthand_index]);
+								break;
+							}
+						}
+						
+						//Looks through message parts for trend indicator text match
+						if(passes_regex_filter){
+							let match_found = false;
+							for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
+								
+								for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
+									let message_part = "";
+									if(message_array[current_righthand_index].message.runs[part_of_message].text)
+										message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
+									else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
+										message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
+									else
+										continue;
+									
+									//DEBUGGING console.log("Current message part: " + message_part)
+									
+									if(!message_part)
+										console.log(message_array[current_righthand_index])
+									if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
+										group_analysis_variables[i].text_match_count += 1;
+										match_found = true;
+										break;
+									}
+									else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
+										//DEBUGGING console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
+										group_analysis_variables[i].text_match_count += 1;
+										match_found = true;
+										break;
+									}
+								}
+								if(match_found)
+									break;
+							}
+						}
+					}
+					
+					current_righthand_index++;
+				}
+			} catch (error) {
+				console.log(error);
+				console.log(settings_groups);
+				return;
+			}
+			
+			//DEBUGGING console.log("DEBUGGING AFTER RIGHTSIDE: current_righthand_index: " + current_righthand_index);
+			//DEBUGGING console.log("Current gathering state: " + current_gathering_state);
+			//DEBUGGING console.log("Latest gathered message time: " + latest_gathering_message_time);
+			//DEBUGGING console.log(message_array[current_righthand_index - 1]);
+			//DEBUGGING console.log(message_array[current_righthand_index]);
+			
+			
+			/* DEBUGGING 
 			try{
 				if(current_gathering_state !== 2 || current_righthand_index !== message_array.length)
 					console.log("DEBUGGING BEFORE LEFTSIDE: [" + current_righthand_index + "] - " + timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) + " =?= " + (current_analysis_time + analysis_time_width));
@@ -536,6 +568,8 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				console.log("analysis time range limit: " + (current_analysis_time + analysis_time_width));
 				return;
 			}
+			*/
+			
 			//Removes all messages before the new current_analysis_time and decreases match counts if any removed messages match
 			while(timestamp_to_seconds(message_array[0].timestampText.simpleText) < current_analysis_time){
 				for(let i = 0; i < settings_groups.length; i++){
@@ -552,12 +586,12 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 							continue;
 						
 						if(!message_part)
-							console.log(message_array[0])
+							//DEBUGGING console.log(message_array[0])
 						if(settings_groups[i]["Regex filter"].test(message_part)){
 							group_analysis_variables[i].filter_match_count -= 1;
 							passes_regex_filter = true;
-							console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
-							console.log(message_array[0]);
+							//DEBUGGING console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
+							//DEBUGGING console.log(message_array[0]);
 							break;
 						}
 					}
@@ -574,7 +608,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 								else
 									continue;
 								
-								console.log("Current message part: " + message_part)
+								//DEBUGGING console.log("Current message part: " + message_part)
 								
 								if(!message_part)
 									console.log(message_array[0])
@@ -584,7 +618,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 									break;
 								}
 								else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
-									console.log(message_array[0].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
+									//DEBUGGING console.log(message_array[0].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
 									group_analysis_variables[i].text_match_count -= 1;
 									match_found = true;
 									break;
@@ -595,108 +629,32 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 						}
 					}
 				}
-				console.log(message_array);
-				console.log(message_array[0]);
-				console.log("current_righthand_index: " + current_righthand_index);
-				console.log("current_analysis_time: " + current_analysis_time)
-				console.log(message_array.shift());
+				//DEBUGGING console.log(message_array);
+				//DEBUGGING console.log(message_array[0]);
+				//DEBUGGING console.log("current_righthand_index: " + current_righthand_index);
+				//DEBUGGING console.log("current_analysis_time: " + current_analysis_time)
+				//DEBUGGING console.log(message_array.shift());
 				current_righthand_index--;
-				console.log(message_array);
-				console.log(message_array[0]);
-				console.log("current_righthand_index: " + current_righthand_index);
-				console.log("current_analysis_time: " + current_analysis_time)
+				//DEBUGGING console.log(message_array);
+				//DEBUGGING console.log(message_array[0]);
+				//DEBUGGING console.log("current_righthand_index: " + current_righthand_index);
+				//DEBUGGING console.log("current_analysis_time: " + current_analysis_time)
 			}
-			
-			try {
-				if(current_gathering_state !== 2 || current_righthand_index !== message_array.length)
-					console.log("DEBUGGING BEFORE RIGHTSIDE: [" + current_righthand_index + "] - " + timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) + " =?= " + (current_analysis_time + analysis_time_width));
-			} catch (error) {
-				console.log("Error: " + error);
-				console.log("current_gathering_state: " + 2);
-				console.log("latest_gathering_message_time: " + latest_gathering_message_time);
-				console.log("analysis time range limit: " + (current_analysis_time + analysis_time_width));
-				console.log("current_righthand_index: " + current_righthand_index + "\message_array length: " + message_array.length);
-				return;
-			}
-			
-			//Finds the index of the first message that isn't the current analysis time + analysis width and sets it to current_righthand_index
-			try{
-			while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) === current_analysis_time + analysis_time_width){
-				console.log("Index heading right! Currently at " + current_righthand_index);
-				
-				for(let i = 0; i < settings_groups.length; i++){
-					let passes_regex_filter = false;
-					
-					//Looks through message parts to check to see if the message matches the current group's filter
-					for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
-						let message_part = "";
-						if(message_array[current_righthand_index].message.runs[part_of_message].text)
-							message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
-						else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
-							message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
-						else
-							continue;
-						
-						if(!message_part)
-							console.log(message_array[current_righthand_index])
-						if(settings_groups[i]["Regex filter"].test(message_part)){
-							group_analysis_variables[i].filter_match_count += 1;
-							passes_regex_filter = true;
-							console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
-							console.log(message_array[current_righthand_index]);
-							break;
-						}
-					}
-					
-					//Looks through message parts for trend indicator text match
-					if(passes_regex_filter){
-						let match_found = false;
-						for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
-							
-							for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
-								let message_part = "";
-								if(message_array[current_righthand_index].message.runs[part_of_message].text)
-									message_part = message_array[current_righthand_index].message.runs[part_of_message].text;
-								else if(message_array[current_righthand_index].message.runs[part_of_message].emoji)
-									message_part = message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts[message_array[current_righthand_index].message.runs[part_of_message].emoji.shortcuts.length - 1];
-								else
-									continue;
-								
-								console.log("Current message part: " + message_part)
-								
-								if(!message_part)
-									console.log(message_array[current_righthand_index])
-								if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
-									group_analysis_variables[i].text_match_count += 1;
-									match_found = true;
-									break;
-								}
-								else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
-									console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
-									group_analysis_variables[i].text_match_count += 1;
-									match_found = true;
-									break;
-								}
-							}
-							if(match_found)
-								break;
-						}
+		
+			//Analyze current time range for trends
+			for(let group_index = 0; group_index < group_analysis_variables.length; group_index++){
+				console.log("Trend logic: Group [" + group_index + "] - " + group_analysis_variables[group_index].text_match_count + " : " + group_analysis_variables[group_index].filter_match_count);
+				if(group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count >= settings_groups[group_index]["Sensitivity"]){
+					console.log("Trend detected at " + current_analysis_time + " - " + group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count + " - " + settings_groups[group_index]["Name"]);
+					if(group_analysis_variables[group_index].trend_start_time === null)
+						group_analysis_variables[group_index].trend_start_time = current_analysis_time;
+				} else {
+					if(group_analysis_variables[group_index].trend_start_time !== null){
+						analysis_results.push({"group": settings_groups[group_index]["Name"], "start_time": group_analysis_variables[group_index].trend_start_time, "end_time": current_analysis_time});
+						group_analysis_variables[group_index].trend_start_time = null;
 					}
 				}
-				
-				current_righthand_index++;
 			}
-			} catch (error) {
-				console.log(error);
-				console.log(settings_groups);
-				return;
-			}
-			
-			console.log("DEBUGGING AFTER RIGHTSIDE: current_righthand_index: " + current_righthand_index);
-			console.log("Current gathering state: " + current_gathering_state);
-			console.log("Latest gathered message time: " + latest_gathering_message_time);
-			console.log(message_array[current_righthand_index - 1]);
-			console.log(message_array[current_righthand_index]);
 			
 			
 			current_time = Date.now();
@@ -723,7 +681,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 		analysis_time_changes[4]+= current_time - last_checkpoint_time;
 	last_checkpoint_time = current_time;
 	
-	setTimeout(analyze_messages, 0, current_analysis_time, current_righthand_index, analysis_time_width, first_iteration, iteration_count + 1, group_analysis_variables);
+	setTimeout(analyze_messages, 0, current_analysis_time, current_righthand_index, analysis_time_width, iteration_count + 1, group_analysis_variables);
 	
 	current_time = Date.now();
 	console.log("Checkpoint 6: " + current_time);
@@ -747,19 +705,37 @@ async function highlights_button_pressed() {
 		highlights_area.appendChild(highlights_menu);
 		menu_is_open = true;
 	}
-	
+
+
 	if(current_gathering_state === 0){
 		current_gathering_state = 1;
 		update_main_menu();
 		
-		const initial_continuation_id = await get_initial_continuation_ID();
-		console.log("initial_continuation_id: " + initial_continuation_id);
-		await get_next_continuation(initial_continuation_id, 0);
-		
-		update_main_menu();
+		//Start up gathering
+		console.log(next_continuation_id);
+		if(!next_continuation_id){ //If you don't already have a continuation_id from previous gathering
+			console.log("Initial gathering startup")
+			const initial_continuation_id = await get_initial_continuation_ID();
+			console.log("initial_continuation_id: " + initial_continuation_id);
+			get_next_continuation(initial_continuation_id, 0);
+		} else if(next_continuation_id !== "DONE!"){ //Resume progress from previous gathering if not already finished
+			console.log("Middle gathering startup")
+			get_next_continuation(next_continuation_id, 0);
+		} else{
+			console.log("Gathering previously finished")
+		}
 	} else {
 		update_main_menu();
 		console.log("Route 2")
+	}
+	
+	//Start up analysis
+	console.log("current_analysis_state: " + current_analysis_state);
+	console.log("initial_analysis_variables: ");
+	console.log(initial_analysis_variables);
+	if(current_analysis_state === 0){
+		current_analysis_state = 1;
+		analyze_messages(initial_analysis_variables["current_analysis_time"], initial_analysis_variables["current_righthand_index"], initial_analysis_variables["analysis_time_width"], initial_analysis_variables["iteration_count"], initial_analysis_variables["group_analysis_variables"]);
 	}
 }
 
