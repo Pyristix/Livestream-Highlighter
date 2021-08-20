@@ -59,8 +59,10 @@ const default_settings_sets = [{"name" : "Default Settings",
 let settings_sets = [];
 let settings_groups = [];
 
-//Retrieves stored settings
-//Format of the settings array in storage should be [int for the index of the set in use, {settings_sets}]
+//DEBUGGING USE
+//settings_groups = default_settings_groups;
+//settings_sets = default_settings_sets;
+
 load_settings();
 
 //save_settings();
@@ -69,9 +71,7 @@ load_settings();
 //	console.log(results)
 //})
 
-//DEBUGGING USE
-//settings_groups = default_settings_groups;
-//settings_sets = default_settings_sets;
+
 
 console.log(settings_sets);
 console.log(settings_groups);
@@ -83,8 +83,13 @@ console.log(settings_groups);
 let analysis_results = [];
 
 //Default analysis variables that act like parameters for analyze_messages
-//Format: [current_analysis_time, current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables]
-let initial_analysis_variables = [-1, 0, 20, 1, []];
+//Format: [current_analysis_time, current_righthand_index, analysis_time_width, iteration_count]
+let initial_analysis_variables = [-1, 0, 20, 1];
+
+//Group analysis variables(counts, etc.) for enabled settings groups
+let group_analysis_variables = [];
+//Stores only enabled settings groups
+let enabled_settings_groups = [];
 
 
 //Loads previously analyzed results and progress in gathering and analysis
@@ -211,6 +216,7 @@ function load_settings() {
 					for(let indicator_index = 0; indicator_index < settings_sets[set_index]["groups"][group_index]["Text to match"].length; indicator_index++)
 						if(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["String/Regex"] === "Regex")
 							settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = new RegExp(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"]);
+
 				}
 			}
 			
@@ -220,15 +226,19 @@ function load_settings() {
 		
 		//Inserts empty defaults for group_analysis_variables for each trend group (now that the trend groups are loaded)
 		for(i in settings_groups){
-			initial_analysis_variables[4].push({
-								"filter_match_count": 0, 
-								"text_match_count": 0, 
-								"trend_start_time": null
-							   });
+			if(settings_groups[i]["Enabled"]){
+				group_analysis_variables.push({
+											"filter_match_count": 0, 
+											"text_match_count": 0, 
+											"trend_start_time": null
+										});
+				enabled_settings_groups.push(settings_groups[i]);
+			}
 		}
 		console.log(initial_analysis_variables);
 		console.log(settings_sets);
 		console.log(settings_groups);
+		console.log(enabled_settings_groups);
 	})
 
 }
@@ -348,7 +358,7 @@ function get_initial_continuation_ID() {
 function get_next_continuation(continuation_id, iteration_count) {
 	if(current_analysis_state === 0){
 		current_analysis_state = 1;
-		analyze_messages(initial_analysis_variables[0], initial_analysis_variables[1], initial_analysis_variables[2], initial_analysis_variables[3], initial_analysis_variables[4]);
+		analyze_messages(initial_analysis_variables[0], initial_analysis_variables[1], initial_analysis_variables[2], initial_analysis_variables[3]);
 	}
 	
 
@@ -413,7 +423,7 @@ function get_next_continuation(continuation_id, iteration_count) {
 
 }
 
-function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables) {
+function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, iteration_count) {
 	let current_time = Date.now();
 	console.log("Checkpoint 1: " + current_time);
 	last_checkpoint_time = current_time;
@@ -474,7 +484,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				while(current_righthand_index !== message_array.length && timestamp_to_seconds(message_array[current_righthand_index].timestampText.simpleText) <= current_analysis_time + analysis_time_width){
 					console.log("Index heading right! Currently at " + current_righthand_index);
 					
-					for(let i = 0; i < settings_groups.length; i++){
+					for(let i = 0; i < enabled_settings_groups.length; i++){
 						let passes_regex_filter = false;
 						
 						//Looks through message parts to check to see if the message matches the current group's filter
@@ -489,10 +499,10 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 							
 							if(!message_part)
 								console.log(message_array[current_righthand_index])
-							if(settings_groups[i]["Regex filter"].test(message_part)){
+							if(enabled_settings_groups[i]["Regex filter"].test(message_part)){
 								group_analysis_variables[i].filter_match_count += 1;
 								passes_regex_filter = true;
-								//console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
+								//console.log("Passed Regex filter: " + enabled_settings_groups[i]["Regex filter"].source);
 								//console.log(message_array[current_righthand_index]);
 								break;
 							}
@@ -501,7 +511,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 						//Looks through message parts for trend indicator text match
 						if(passes_regex_filter){
 							let match_found = false;
-							for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
+							for(let j = 0; j < enabled_settings_groups[i]["Text to match"].length; j++){
 								
 								for(let part_of_message = 0; part_of_message < message_array[current_righthand_index].message.runs.length; part_of_message++){
 									let message_part = "";
@@ -516,13 +526,13 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 									
 									if(!message_part)
 										console.log(message_array[current_righthand_index])
-									if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
+									if(enabled_settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && enabled_settings_groups[i]["Text to match"].Text.test(message_part)){
 										group_analysis_variables[i].text_match_count += 1;
 										match_found = true;
 										break;
 									}
-									else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
-										//console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
+									else if(message_part.includes(enabled_settings_groups[i]["Text to match"][j].Text)){
+										//console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + enabled_settings_groups[i]["Text to match"][j].Text)
 										group_analysis_variables[i].text_match_count += 1;
 										match_found = true;
 										break;
@@ -537,7 +547,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 				}
 			} catch (error) {
 				console.log(error);
-				console.log(settings_groups);
+				console.log(enabled_settings_groups);
 				return;
 			}
 			
@@ -561,7 +571,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			}
 			//Removes all messages before the new current_analysis_time and decreases match counts if any removed messages match
 			while(timestamp_to_seconds(message_array[0].timestampText.simpleText) < current_analysis_time){
-				for(let i = 0; i < settings_groups.length; i++){
+				for(let i = 0; i < enabled_settings_groups.length; i++){
 					let passes_regex_filter = false;
 					
 					//Looks through message parts to check to see if the message matches the current group's filter
@@ -576,10 +586,10 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 						
 						if(!message_part)
 							console.log(message_array[0])
-						if(settings_groups[i]["Regex filter"].test(message_part)){
+						if(enabled_settings_groups[i]["Regex filter"].test(message_part)){
 							group_analysis_variables[i].filter_match_count -= 1;
 							passes_regex_filter = true;
-							//console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
+							//console.log("Passed Regex filter: " + enabled_settings_groups[i]["Regex filter"].source);
 							//console.log(message_array[0]);
 							break;
 						}
@@ -587,7 +597,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 					
 					if(passes_regex_filter){
 						let match_found = false; //For getting out of the double for loop when a match is found
-						for(let j = 0; j < settings_groups[i]["Text to match"].length; j++){
+						for(let j = 0; j < enabled_settings_groups[i]["Text to match"].length; j++){
 							for(let part_of_message = 0; part_of_message < message_array[0].message.runs.length; part_of_message++){
 								let message_part = "";
 								if(message_array[0].message.runs[part_of_message].text)
@@ -601,13 +611,13 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 								
 								if(!message_part)
 									console.log(message_array[0])
-								if(settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && settings_groups[i]["Text to match"].Text.test(message_part)){
+								if(enabled_settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && enabled_settings_groups[i]["Text to match"].Text.test(message_part)){
 									group_analysis_variables[i].text_match_count -= 1;
 									match_found = true;
 									break;
 								}
-								else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
-									//console.log(message_array[0].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
+								else if(message_part.includes(enabled_settings_groups[i]["Text to match"][j].Text)){
+									//console.log(message_array[0].timestampText.simpleText + " - " + enabled_settings_groups[i]["Text to match"][j].Text)
 									group_analysis_variables[i].text_match_count -= 1;
 									match_found = true;
 									break;
@@ -635,13 +645,13 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			//Trend finding logic
 			for(let group_index = 0; group_index < group_analysis_variables.length; group_index++){
 				console.log("Trend logic: Group [" + group_index + "] - " + group_analysis_variables[group_index].text_match_count + " : " + group_analysis_variables[group_index].filter_match_count);
-				if(group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count >= settings_groups[group_index]["Sensitivity"]){
-					console.log("Trend detected at " + current_analysis_time + " - " + group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count + " - " + settings_groups[group_index]["Name"]);
+				if(group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count >= enabled_settings_groups[group_index]["Sensitivity"]){
+					console.log("Trend detected at " + current_analysis_time + " - " + group_analysis_variables[group_index].text_match_count/group_analysis_variables[group_index].filter_match_count + " - " + enabled_settings_groups[group_index]["Name"]);
 					if(group_analysis_variables[group_index].trend_start_time === null)
 						group_analysis_variables[group_index].trend_start_time = current_analysis_time;
 				} else {
 					if(group_analysis_variables[group_index].trend_start_time !== null){
-						analysis_results.push({"group": settings_groups[group_index]["Name"], "start_time": group_analysis_variables[group_index].trend_start_time, "end_time": current_analysis_time});
+						analysis_results.push({"group": enabled_settings_groups[group_index]["Name"], "start_time": group_analysis_variables[group_index].trend_start_time, "end_time": current_analysis_time});
 						group_analysis_variables[group_index].trend_start_time = null;
 					}
 				}
