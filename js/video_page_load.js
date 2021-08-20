@@ -44,12 +44,12 @@ const default_settings_groups = [{"Name": "Funny",
 								  "Sensitivity": 0.5, 
 								  "Regex filter": new RegExp(""), 
 								  "Text to match": [{"String/Regex": "String", "Text": "ちょこん"}]},
-								 {"Name": "Nandawa", 
+								 {"Name": "待機", 
 								  "Enabled": true, 
 								  "Time before trend": 15, 
 								  "Sensitivity": 0.5, 
 								  "Regex filter": new RegExp(""), 
-								  "Text to match": [{"String/Regex": "String", "Text": "なんだわ"}]}];
+								  "Text to match": [{"String/Regex": "Regex", "Text": new RegExp("待機")}]}];
 
 const default_settings_sets = [{"name" : "Default Settings", 
 								"groups" : default_settings_groups}];
@@ -64,14 +64,14 @@ let settings_groups = [];
 //settings_sets = default_settings_sets;
 
 load_settings();
-
 //save_settings();
 
-//chrome.storage.local.get("livestream_highlighter_settings", (results) => {
-//	console.log(results)
-//})
+chrome.storage.local.get("livestream_highlighter_settings", (results) => {
+	console.log(results)
+})
 
-
+//console.log(typeof settings_groups[1]["Regex filter"])
+//console.log(typeof settings_groups[4]["Text to match"][0]["Text"])
 
 console.log(settings_sets);
 console.log(settings_groups);
@@ -526,10 +526,12 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 									
 									if(!message_part)
 										console.log(message_array[current_righthand_index])
-									if(enabled_settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && enabled_settings_groups[i]["Text to match"].Text.test(message_part)){
-										group_analysis_variables[i].text_match_count += 1;
-										match_found = true;
-										break;
+									if(enabled_settings_groups[i]["Text to match"][j]["String/Regex"] === "Regex"){
+										if(enabled_settings_groups[i]["Text to match"][j].Text.test(message_part)){
+											group_analysis_variables[i].text_match_count += 1;
+											match_found = true;
+											break;
+										}
 									}
 									else if(message_part.includes(enabled_settings_groups[i]["Text to match"][j].Text)){
 										//console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + enabled_settings_groups[i]["Text to match"][j].Text)
@@ -611,10 +613,12 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 								
 								if(!message_part)
 									console.log(message_array[0])
-								if(enabled_settings_groups[i]["Text to match"]["String/Regex"] === "Regex" && enabled_settings_groups[i]["Text to match"].Text.test(message_part)){
-									group_analysis_variables[i].text_match_count -= 1;
-									match_found = true;
-									break;
+								if(enabled_settings_groups[i]["Text to match"][j]["String/Regex"] === "Regex"){
+									if(enabled_settings_groups[i]["Text to match"][j].Text.test(message_part)){
+										group_analysis_variables[i].text_match_count -= 1;
+										match_found = true;
+										break;
+									}
 								}
 								else if(message_part.includes(enabled_settings_groups[i]["Text to match"][j].Text)){
 									//console.log(message_array[0].timestampText.simpleText + " - " + enabled_settings_groups[i]["Text to match"][j].Text)
