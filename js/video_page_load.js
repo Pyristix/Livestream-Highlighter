@@ -61,19 +61,17 @@ let settings_groups = [];
 
 //Retrieves stored settings
 //Format of the settings array in storage should be [int for the index of the set in use, {settings_sets}]
-
-
-//load_settings();
+load_settings();
 
 //save_settings();
 
-chrome.storage.local.get("livestream_highlighter_settings", (results) => {
-	console.log(results)
-})
+//chrome.storage.local.get("livestream_highlighter_settings", (results) => {
+//	console.log(results)
+//})
 
 //DEBUGGING USE
-settings_groups = default_settings_groups;
-settings_sets = default_settings_sets;
+//settings_groups = default_settings_groups;
+//settings_sets = default_settings_sets;
 
 console.log(settings_sets);
 console.log(settings_groups);
@@ -87,15 +85,6 @@ let analysis_results = [];
 //Default analysis variables that act like parameters for analyze_messages
 //Format: [current_analysis_time, current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables]
 let initial_analysis_variables = [-1, 0, 20, 1, []];
-
-//Empty defaults for group_analysis_variables for each setting
-for(i in settings_groups){
-	initial_analysis_variables[4].push({
-						"filter_match_count": 0, 
-						"text_match_count": 0, 
-						"trend_start_time": null
-					   });
-}
 
 
 //Loads previously analyzed results and progress in gathering and analysis
@@ -228,6 +217,18 @@ function load_settings() {
 			settings_groups = settings_sets[results["livestream_highlighter_settings"][0]]["groups"];
 			console.log("Livestream Highlighter: Settings retrieved");
 		}
+		
+		//Inserts empty defaults for group_analysis_variables for each trend group (now that the trend groups are loaded)
+		for(i in settings_groups){
+			initial_analysis_variables[4].push({
+								"filter_match_count": 0, 
+								"text_match_count": 0, 
+								"trend_start_time": null
+							   });
+		}
+		console.log(initial_analysis_variables);
+		console.log(settings_sets);
+		console.log(settings_groups);
 	})
 
 }
@@ -750,9 +751,7 @@ var retry_interval = setInterval(() => {
 
 
 setInterval(() => {
-	console.log("Interval is being done")
 	if(!(current_gathering_state === 2 && current_analysis_state === 2) && analysis_results.length < 1000 && message_array.length < 2000){
-		console.error("Interval conditional passed")
 		chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results, next_continuation_id, message_array, video_length, initial_analysis_variables]});
 	}
 }, 1000)
