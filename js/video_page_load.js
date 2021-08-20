@@ -98,7 +98,8 @@ for(i in settings_groups){
 }
 
 
-//Loads previously analyzed results
+//Loads previously analyzed results and progress in gathering and analysis
+//Format for the stored data: [root_url, analysis_results, next_continuation_id, message_array, {parameters of analyze_messages}]
 chrome.storage.local.get("livestream_highlighter_progress", (results) => {
 	console.log(results)
 	if(results["livestream_highlighter_progress"] !== null && results["livestream_highlighter_progress"][0] === root_url){
@@ -114,8 +115,9 @@ chrome.storage.local.get("livestream_highlighter_progress", (results) => {
 			}
 		})
 	}
-	//chrome.storage.local.set({"livestream_highlighter_progress": null});
-	//chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results]});
+	//The code for setting this data
+	//chrome.storage.local.set({"livestream_highlighter_gathering_analysis_progress": null});
+	//chrome.storage.local.set({"livestream_highlighter_gathering_analysis_progress": [root_url, analysis_results, next_continuation_id, message_array, video_length, [current_analysis_time, current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables]]});
 })
 
 
@@ -343,67 +345,71 @@ function get_initial_continuation_ID() {
 
 //Recursive function that adds the current continuation's messages onto message_array then continues onto the next continuation.
 function get_next_continuation(continuation_id, iteration_count) {
-	return fetch("https://www.youtube.com/live_chat_replay?continuation=" + continuation_id)
-	.then(
-		(response) => {
-			if(response.status !== 200) {
-				console.log("Livestream Highlighter: Error on retrieving continuation ID. Error code: " + response.status)
-				return;
-			}
-			return response.text();
-		})
-	.then(
-		(data) => {
-			const chat_object_starting_index = data.indexOf('"liveChatContinuation"', 30259) + 23;
-			let chat_object_ending_index = data.indexOf('"trackingParams"', data.length - 370) - 2;
-			if(chat_object_ending_index === -3)
-				chat_object_ending_index = data.indexOf('};', data.length - 651) - 1;
-			
-			let chat_info = data.substring(chat_object_starting_index, chat_object_ending_index);
-			try{
-				chat_info = JSON.parse(chat_info);
-			} catch(error){
-				console.log(error);
-				console.log("DEBUGGING IT_COUNT: " + iteration_count);
-				console.log("DEBUGGING START_INDEX:" + chat_object_starting_index)
-				console.log("DEBUGGING END_INDEX:" + chat_object_ending_index)
-				console.log("DEBUGGING ID: " + continuation_id);
-				console.log("DEBUGGING TEXT: " + chat_info);
-				return;
-			}
-			
-			
-			if(chat_info.continuations[0].liveChatReplayContinuationData)
-				next_continuation_id = chat_info.continuations[0].liveChatReplayContinuationData.continuation;
+	if(current_analysis_state === 0){
+		current_analysis_state = 1;
+		analyze_messages(initial_analysis_variables[0], initial_analysis_variables[1], initial_analysis_variables[2], initial_analysis_variables[3], initial_analysis_variables[4]);
+	}
+	
 
-			
-			for(const chat_item in chat_info.actions) {
-				if(chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction !== undefined && chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction.item.liveChatTextMessageRenderer !== undefined)
-					message_array.push(chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction.item.liveChatTextMessageRenderer);
-			}
-			
-			console.log(message_array);
-			latest_gathering_message_time = timestamp_to_seconds(message_array[message_array.length - 1].timestampText.simpleText);
-			update_main_menu();
+	if(continuation_id !== "DONE!"){
+		return fetch("https://www.youtube.com/live_chat_replay?continuation=" + continuation_id)
+		.then(
+			(response) => {
+				if(response.status !== 200) {
+					console.log("Livestream Highlighter: Error on retrieving continuation ID. Error code: " + response.status)
+					return;
+				}
+				return response.text();
+			})
+		.then(
+			(data) => {
+				const chat_object_starting_index = data.indexOf('"liveChatContinuation"', 30259) + 23;
+				let chat_object_ending_index = data.indexOf('"trackingParams"', data.length - 370) - 2;
+				if(chat_object_ending_index === -3)
+					chat_object_ending_index = data.indexOf('};', data.length - 651) - 1;
+				
+				let chat_info = data.substring(chat_object_starting_index, chat_object_ending_index);
+				try{
+					chat_info = JSON.parse(chat_info);
+				} catch(error){
+					console.log(error);
+					console.log("DEBUGGING IT_COUNT: " + iteration_count);
+					console.log("DEBUGGING START_INDEX:" + chat_object_starting_index)
+					console.log("DEBUGGING END_INDEX:" + chat_object_ending_index)
+					console.log("DEBUGGING ID: " + continuation_id);
+					console.log("DEBUGGING TEXT: " + chat_info);
+					return;
+				}
+				
+				
+				if(chat_info.continuations[0].liveChatReplayContinuationData)
+					next_continuation_id = chat_info.continuations[0].liveChatReplayContinuationData.continuation;
 
-			if(current_analysis_state === 0){
-				current_analysis_state = 1;
-				analyze_messages(initial_analysis_variables[0], initial_analysis_variables[1], initial_analysis_variables[2], initial_analysis_variables[3], initial_analysis_variables[4]);
+				
+				for(const chat_item in chat_info.actions) {
+					if(chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction !== undefined && chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction.item.liveChatTextMessageRenderer !== undefined)
+						message_array.push(chat_info.actions[chat_item].replayChatItemAction.actions[0].addChatItemAction.item.liveChatTextMessageRenderer);
+				}
+				
+				console.log(message_array);
+				latest_gathering_message_time = timestamp_to_seconds(message_array[message_array.length - 1].timestampText.simpleText);
+				update_main_menu();
+				
+				try{
+					console.log("[" + iteration_count + "] Continuation ID: " + chat_info.continuations[0].liveChatReplayContinuationData.continuation)
+				} catch(error) {
+					console.log("Reached end of continuations")
+					next_continuation_id = "DONE!";
+					current_gathering_state = 2;
+					return;
+				}
+				
+				if(data)
+					return get_next_continuation(next_continuation_id, iteration_count + 1);
 			}
-			
-			try{
-				console.log("[" + iteration_count + "] Continuation ID: " + chat_info.continuations[0].liveChatReplayContinuationData.continuation)
-			} catch(error) {
-				console.log("Reached end of continuations")
-				next_continuation_id = "DONE!";
-				current_gathering_state = 2;
-				return;
-			}
-			
-			if(data)
-				return get_next_continuation(next_continuation_id, iteration_count + 1);
-		}
-	);
+		);
+	}
+
 }
 
 function analyze_messages(current_analysis_time, current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables) {
@@ -419,11 +425,16 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			console.log("Current Second: " + current_analysis_time);
 			current_analysis_state = 2;
 			console.log(analysis_time_changes);
-			chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results]});
+			chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results, next_continuation_id, message_array.length, video_length, ["DONE!", current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables]]});
 			update_main_menu();
 			console.log(analysis_results);
 			return;
 		}
+		
+		//Saves progress to storage
+		initial_analysis_variables = [current_analysis_time, current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables]
+		
+		console.log("message_array length check: " + message_array.length);
 		
 		console.log("current_gathering_state: " + current_gathering_state)
 		console.log("latest gathering time : current + width + 1  =  " + latest_gathering_message_time + " : " + (current_analysis_time + analysis_time_width + 1));
@@ -480,8 +491,8 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 							if(settings_groups[i]["Regex filter"].test(message_part)){
 								group_analysis_variables[i].filter_match_count += 1;
 								passes_regex_filter = true;
-								console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
-								console.log(message_array[current_righthand_index]);
+								//console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
+								//console.log(message_array[current_righthand_index]);
 								break;
 							}
 						}
@@ -500,7 +511,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 									else
 										continue;
 									
-									console.log("Current message part: " + message_part)
+									//console.log("Current message part: " + message_part)
 									
 									if(!message_part)
 										console.log(message_array[current_righthand_index])
@@ -510,7 +521,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 										break;
 									}
 									else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
-										console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
+										//console.log(message_array[current_righthand_index].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
 										group_analysis_variables[i].text_match_count += 1;
 										match_found = true;
 										break;
@@ -567,8 +578,8 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 						if(settings_groups[i]["Regex filter"].test(message_part)){
 							group_analysis_variables[i].filter_match_count -= 1;
 							passes_regex_filter = true;
-							console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
-							console.log(message_array[0]);
+							//console.log("Passed Regex filter: " + settings_groups[i]["Regex filter"].source);
+							//console.log(message_array[0]);
 							break;
 						}
 					}
@@ -585,7 +596,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 								else
 									continue;
 								
-								console.log("Current message part: " + message_part)
+								//console.log("Current message part: " + message_part)
 								
 								if(!message_part)
 									console.log(message_array[0])
@@ -595,7 +606,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 									break;
 								}
 								else if(message_part.includes(settings_groups[i]["Text to match"][j].Text)){
-									console.log(message_array[0].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
+									//console.log(message_array[0].timestampText.simpleText + " - " + settings_groups[i]["Text to match"][j].Text)
 									group_analysis_variables[i].text_match_count -= 1;
 									match_found = true;
 									break;
@@ -738,3 +749,10 @@ var retry_interval = setInterval(() => {
 }, 500);
 
 
+setInterval(() => {
+	console.log("Interval is being done")
+	if(!(current_gathering_state === 2 && current_analysis_state === 2) && analysis_results.length < 1000 && message_array.length < 2000){
+		console.error("Interval conditional passed")
+		chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results, next_continuation_id, message_array, video_length, initial_analysis_variables]});
+	}
+}, 1000)
