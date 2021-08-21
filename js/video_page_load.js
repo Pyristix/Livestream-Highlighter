@@ -14,6 +14,7 @@ let recommended_section = null;
 let message_array = [];
 let latest_gathering_message_time = null;
 let next_continuation_id = "";
+var progress_save_interval = null;
 
 //DEBUGGING USE
 let analysis_time_changes = [0, 0, 0, 0, 0, 0];
@@ -97,9 +98,17 @@ let enabled_settings_groups = [];
 chrome.storage.local.get("livestream_highlighter_progress", (results) => {
 	console.log(results)
 	if(results["livestream_highlighter_progress"] !== null && results["livestream_highlighter_progress"][0] === root_url){
-		current_gathering_state = 2;
-		current_analysis_state = 2;
+		next_continuation_id = results["livestream_highlighter_progress"][2];
+		message_array = results["livestream_highlighter_progress"][3];
+		initial_analysis_variables = results["livestream_highlighter_progress"][5];
+		
+		if(next_continuation_id === "DONE!")
+			current_gathering_state = 2;
+		if(initial_analysis_variables[0] === "DONE!")
+			current_analysis_state = 2;
+		
 		analysis_results = results["livestream_highlighter_progress"][1]
+		video_length = results["livestream_highlighter_progress"][4];
 		
 		//Resets the variable for determining whether or not you came to the page from clicking a highlight timestamp
 		chrome.storage.local.get("livestream_highlighter_timestamp_click", (results) => {
@@ -700,24 +709,35 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 async function highlights_button_pressed() {
 	console.log("Highlights button pressed");
 	if(menu_is_open){
+		clearInterval(progress_save_interval);
+		
 		if(settings_menu_is_open)
 			highlights_area.removeChild(settings_menu);
 		highlights_area.removeChild(highlights_menu);
 		menu_is_open = false;
 	} else {
+		progress_save_interval = setInterval(() => {
+			if(!(current_gathering_state === 2 && current_analysis_state === 2) && analysis_results.length < 1000 && message_array.length < 2000){
+				chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results, next_continuation_id, message_array, video_length, initial_analysis_variables]});
+			}
+		}, 1000);
+		
 		if(settings_menu_is_open)
 			highlights_area.appendChild(settings_menu);
 		highlights_area.appendChild(highlights_menu);
 		menu_is_open = true;
+		
+		
 	}
 	
-	if(current_gathering_state === 0){
+	
+	if(current_gathering_state === 0 || current_analysis_state === 0){
 		current_gathering_state = 1;
 		update_main_menu();
 		
-		const initial_continuation_id = await get_initial_continuation_ID();
-		console.log("initial_continuation_id: " + initial_continuation_id);
-		await get_next_continuation(initial_continuation_id, 0);
+		if(!next_continuation_id)
+			next_continuation_id = await get_initial_continuation_ID();
+		await get_next_continuation(next_continuation_id, 0);
 		
 		update_main_menu();
 	} else {
@@ -765,8 +785,3 @@ var retry_interval = setInterval(() => {
 }, 500);
 
 
-setInterval(() => {
-	if(!(current_gathering_state === 2 && current_analysis_state === 2) && analysis_results.length < 1000 && message_array.length < 2000){
-		chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results, next_continuation_id, message_array, video_length, initial_analysis_variables]});
-	}
-}, 1000)
