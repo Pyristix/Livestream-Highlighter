@@ -436,7 +436,8 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			console.log("Current Second: " + current_analysis_time);
 			current_analysis_state = 2;
 			console.log(analysis_time_changes);
-			chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results, next_continuation_id, message_array.length, video_length, ["DONE!", current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables]]});
+			initial_analysis_variables = ["DONE!", current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables];
+			chrome.storage.local.set({"livestream_highlighter_progress": [root_url, analysis_results, next_continuation_id, message_array, video_length, initial_analysis_variables]});
 			update_main_menu();
 			console.log(analysis_results);
 			return;
