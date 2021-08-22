@@ -32,6 +32,82 @@
 	font-size: 15px;
 }
 
+.settings_set_button {
+	width: 74px;
+	background-color: white;
+	padding-left: 0px;
+	border: none;
+	border-bottom: 1px solid grey;
+}
+
+.settings_set_name {
+	text-overflow: ellipsis;
+	width: 67px;
+	margin-top: 1px;
+	margin-bottom: 1px;
+	cursor: default;
+	pointer-events: none;
+	
+	border-top-style: hidden;
+	border-right-style: hidden;
+	border-left-style: hidden;
+	border-bottom-style: hidden;
+	background-color: transparent;
+}
+
+.settings_group_button {
+	width: 74px;
+	background-color: white;
+	padding-left: 0px;
+	border: none;
+	border-bottom: 1px solid grey;
+}
+
+.settings_group_name {
+	text-overflow: ellipsis;
+	width: 67px;
+	margin-top: 1px;
+	margin-bottom: 1px;
+	cursor: default;
+	pointer-events: none;
+	
+	border: none;
+	background-color: transparent;
+}
+
+.currently_selected_settings_button {
+	background-color: #dbdbdb;
+}
+
+.currently_selected_settings_name {
+	cursor: text;
+	pointer-events: auto;
+}
+
+.currently_selected_settings_name:focus {
+	border: 1px solid black;
+	margin-top: 0px;
+	margin-bottom: 0px;
+	background-color: white;
+}
+
+.add_item_button {
+	position: relative;
+	width: 25px;
+	height: 25px;
+	left: 27px;
+	top: 15px;
+	font-size: 18px;
+	line-height: 23px;
+	border: 1px solid black;
+	border-radius: 5px;
+}
+
+.warning_message {
+	text-align: center;
+	color: red;
+}
+
 #highlights_area {
 	margin-bottom: 15px;
 }
@@ -83,19 +159,33 @@
 }
 
 #set_selection_bar {
+	position: relative;
+	display: block;
 	width: 74px;
 	height: 200px;
 	float: left;
 	background-color: #e6e6e6;
 	border-right: 1px solid grey;
+	overflow-y: scroll;
+}
+
+#set_selection_bar::-webkit-scrollbar {
+    width: 0px;
 }
 
 #group_selection_bar {
+	position: relative;
+	display: block;
 	width: 74px;
 	height: 200px;
 	float: left;
 	background-color: #e6e6e6;
 	border-right: 1px solid grey;
+	overflow-y: scroll;
+}
+
+#group_selection_bar::-webkit-scrollbar {
+    width: 0px;
 }
 
 #group_settings_area {

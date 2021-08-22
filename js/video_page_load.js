@@ -16,6 +16,9 @@ let latest_gathering_message_time = null;
 let next_continuation_id = "";
 var progress_save_interval = null;
 
+let currently_used_settings_set_index = 0;
+let currently_viewing_settings_group_index = 0;
+
 //DEBUGGING USE
 let analysis_time_changes = [0, 0, 0, 0, 0, 0];
 
@@ -59,6 +62,10 @@ const default_settings_sets = [{"name" : "Default Settings",
 //A set is a group of groups, used for if you want different settings between different types of livestreams
 let settings_sets = [];
 let settings_groups = [];
+
+//Changes from the settings menu affect this until the changes are saved.
+let unsaved_settings_sets = [];
+let unsaved_settings_groups = [];
 
 //DEBUGGING USE
 //settings_groups = default_settings_groups;
@@ -155,16 +162,15 @@ settings_button.addEventListener("click", () => {
 	settings_menu_is_open = true;
 	highlights_menu.removeChild(settings_button);
 	highlights_area.insertBefore(settings_menu, highlights_menu);
+	update_settings_menu();
 })
 
 const set_selection_bar = document.createElement("div");
 settings_menu.appendChild(set_selection_bar);
 set_selection_bar.id = "set_selection_bar";
-
 const group_selection_bar = document.createElement("div");
 settings_menu.appendChild(group_selection_bar);
 group_selection_bar.id = "group_selection_bar";
-
 const group_settings_area = document.createElement("div");
 settings_menu.appendChild(group_settings_area);
 group_settings_area.id = "group_settings_area";
@@ -172,14 +178,17 @@ group_settings_area.id = "group_settings_area";
 const save_settings_button = document.createElement("button");
 group_settings_area.appendChild(save_settings_button);
 save_settings_button.id = "save_settings_button";
-save_settings_button.textContent = "DONE";
+save_settings_button.textContent = "SAVE";
 save_settings_button.addEventListener("click", () => {
 	settings_menu_is_open = false;
 	highlights_area.removeChild(settings_menu);
 	chrome.storage.local.set({"livestream_highlighter_progress": null});
 	//TODO: Reanalyze on settings changes
 	update_main_menu();
+	save_settings();
 })
+
+
 
 function save_settings() {
 	let settings_sets_to_save = default_settings_sets;
@@ -228,8 +237,10 @@ function load_settings() {
 
 				}
 			}
-			
+			currently_used_settings_set_index = results["livestream_highlighter_settings"][0]
 			settings_groups = settings_sets[results["livestream_highlighter_settings"][0]]["groups"];
+			unsaved_settings_sets = settings_sets;
+			unsaved_settings_groups = settings_groups;
 			console.log("Livestream Highlighter: Settings retrieved");
 		}
 		
@@ -289,12 +300,144 @@ function seconds_to_timestamp(seconds) {
 
 function update_settings_menu() {
 	settings_menu.innerHTML = "";
+	set_selection_bar.innerHTML = "";
+	group_selection_bar.innerHTML = "";
+	group_settings_area.innerHTML = "";
 	
 	settings_menu.appendChild(set_selection_bar);
 	settings_menu.appendChild(group_selection_bar);
 	settings_menu.appendChild(group_settings_area);
 	
-	//for(let i = 0; i < settings_sets.length; )
+	unsaved_settings_groups = unsaved_settings_sets[currently_used_settings_set_index]["groups"];
+	
+	for(let i = 0; i < unsaved_settings_sets.length; i++){
+		const settings_set_button = document.createElement("button");
+		settings_set_button.className = "settings_set_button";
+		settings_set_button.addEventListener("click",() => {
+			currently_used_settings_set_index = i;
+			update_settings_menu();
+		});
+		const settings_set_name = document.createElement("input");
+		settings_set_button.appendChild(settings_set_name);
+		settings_set_name.className = "settings_set_name";
+		settings_set_name.setAttribute("type", "text");
+		settings_set_name.value = unsaved_settings_sets[i]["name"];
+		settings_set_name.addEventListener("click",() => {
+			if(settings_set_button.className.split(" ").length === 2) //If currently selected
+				event.stopPropagation();
+		});
+		
+		set_selection_bar.appendChild(settings_set_button);
+		
+		if(i === currently_used_settings_set_index){
+			settings_set_button.className = "settings_set_button currently_selected_settings_button";
+			settings_set_name.className = "settings_set_name currently_selected_settings_name";
+		}
+	}
+	
+	let has_new_set = false;
+	for(i in unsaved_settings_sets){
+		if(unsaved_settings_sets[i]["name"] === "New Set"){
+			has_new_set = true;
+			break;
+		}
+	}
+	
+	if(!has_new_set){
+		const add_set_button = document.createElement("button");
+		set_selection_bar.appendChild(add_set_button);
+		add_set_button.className = "add_item_button";
+		add_set_button.textContent = "+";
+		add_set_button.addEventListener("click", () => {
+			unsaved_settings_sets.push({"name": "New Set", "groups": [{
+																"Name": "New Group", 
+																"Enabled": true, 
+																"Time before trend": 15, 
+																"Sensitivity": 0.5, 
+																"Regex filter": new RegExp(""), 
+																"Text to match": []
+															  }]
+			});
+			currently_used_settings_set_index = unsaved_settings_sets.length - 1;
+			currently_viewing_settings_group_index = 0;
+			update_settings_menu();
+		});
+
+	} else {
+		const new_set_warning_message = document.createElement("p");
+		set_selection_bar.appendChild(new_set_warning_message);
+		new_set_warning_message.className = "warning_message";
+		new_set_warning_message.textContent = 'Change the name of "New Set"';
+	}
+	
+	for(let i = 0; i < unsaved_settings_groups.length; i++){
+		const settings_group_button = document.createElement("button");
+		settings_group_button.className = "settings_group_button";
+		settings_group_button.addEventListener("click", () => {
+			currently_viewing_settings_group_index = i;
+			update_settings_menu();
+		});
+		const settings_group_name = document.createElement("input");
+		settings_group_button.appendChild(settings_group_name);
+		settings_group_name.className = "settings_group_name";
+		settings_group_name.setAttribute("type", "text");
+		settings_group_name.value = unsaved_settings_groups[i]["Name"];
+		settings_group_name.addEventListener("click",() => {
+			if(settings_group_button.className.split(" ").length === 2) //If currently selected
+				event.stopPropagation();
+		});
+		
+		group_selection_bar.appendChild(settings_group_button);
+		
+		if(i === currently_viewing_settings_group_index){
+			settings_group_button.className = "settings_group_button currently_selected_settings_button";
+			settings_group_name.className = "settings_group_name currently_selected_settings_name";
+		}
+	}
+	
+	
+	let has_new_group = false;
+	for(i in unsaved_settings_groups){
+		if(unsaved_settings_groups[i]["Name"] === "New Group"){
+			has_new_group = true;
+			break;
+		}
+	}
+	
+	if(!has_new_group){
+		const add_group_button = document.createElement("button");
+		group_selection_bar.appendChild(add_group_button);
+		add_group_button.className = "add_item_button";
+		add_group_button.textContent = "+";
+		
+		add_group_button.addEventListener("click", () => {
+			unsaved_settings_sets[currently_used_settings_set_index]["groups"].push({
+																"Name": "New Group", 
+																"Enabled": true, 
+																"Time before trend": 15, 
+																"Sensitivity": 0.5, 
+																"Regex filter": new RegExp(""), 
+																"Text to match": []
+															  }
+			);
+			currently_viewing_settings_group_index = unsaved_settings_groups.length - 1;
+			update_settings_menu();
+		});
+
+	} else {
+		const new_group_warning_message = document.createElement("p");
+		group_selection_bar.appendChild(new_group_warning_message);
+		new_group_warning_message.className = "warning_message";
+		new_group_warning_message.textContent = 'Change the name of "New Group"';
+	}
+	
+	
+	
+	
+	group_settings_area.appendChild(save_settings_button);
+	
+	//for(let i = 0; i < )
+	
 	//TODO: Refresh settings menu in all areas.
 }
 
