@@ -1,3 +1,13 @@
+input[type="number"] {
+	width: 50px;
+}
+
+input[type="checkbox"] {
+	position: relative;
+	top: 3px;
+	margin-right: 10px;
+}
+
 .highlights_area_item {
 	width: var(--ytd-watch-flexy-sidebar-width) - 2px;
 	color: grey;
@@ -103,7 +113,15 @@
 	border-radius: 5px;
 }
 
+.group_settings_subdiv {
+	margin-left: 5px;
+	margin-top: 5px;
+	margin-bottom: 5px;
+}
+
 .warning_message {
+	position: relative;
+	top: 5px;
 	text-align: center;
 	color: red;
 }
@@ -195,13 +213,53 @@
 	float: right;
 }
 
+#settings_management_buttons_area > button{
+	margin-right: 5px;
+}
+
+#regex_filter_area {
+	padding-left: 30px;
+}
+
+#overall_group_settings_area {
+	padding-left: 10px;
+}
+
+#sensitivity_label, #sensitivity_input {
+	position: relative;
+	left: 50px;
+}
+
+#trend_indicators_area {
+	position: absolute;
+	left: 20px;
+	right: 20px;
+	height: 40px;
+	overflow-y: scroll;
+	border: 1px solid black;
+}
+
 #save_settings_button {
 	background-color: white;
 	font-size: 12px;
 	color: grey;
 	position: absolute;
-	bottom: 20px;
-	left: 91px;
+	bottom: 5px;
+	left: 41px;
+	padding: 6px;
+	padding-left: 15px;
+	padding-right: 15px;
+	border-radius: 5px;
+	border: 1px solid grey;
+}
+
+#cancel_settings_button {
+	background-color: white;
+	font-size: 12px;
+	color: grey;
+	position: absolute;
+	bottom: 5px;
+	left: 121px;
 	padding: 6px;
 	padding-left: 15px;
 	padding-right: 15px;

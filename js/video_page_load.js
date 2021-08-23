@@ -66,6 +66,7 @@ let settings_groups = [];
 //Changes from the settings menu affect this until the changes are saved.
 let unsaved_settings_sets = [];
 let unsaved_settings_groups = [];
+let unsaved_settings_savable = true;
 
 //DEBUGGING USE
 //settings_groups = default_settings_groups;
@@ -98,6 +99,7 @@ let initial_analysis_variables = [-1, 0, 20, 1];
 let group_analysis_variables = [];
 //Stores only enabled settings groups
 let enabled_settings_groups = [];
+
 
 
 //Loads previously analyzed results and progress in gathering and analysis
@@ -175,47 +177,162 @@ const group_settings_area = document.createElement("div");
 settings_menu.appendChild(group_settings_area);
 group_settings_area.id = "group_settings_area";
 
+
+const settings_management_buttons_area	= document.createElement("div");
+settings_management_buttons_area.className = "group_settings_subdiv";
+settings_management_buttons_area.id = "settings_management_buttons_area";
+const help_button = document.createElement("button");
+settings_management_buttons_area.appendChild(help_button);
+help_button.textContent = "?";
+help_button.addEventListener("click", () => {
+	window.open("https://www.google.com", "_blank");
+});
+const delete_set_button = document.createElement("button");
+settings_management_buttons_area.appendChild(delete_set_button);
+delete_set_button.textContent = "Delete Set";
+const delete_group_button = document.createElement("button");
+settings_management_buttons_area.appendChild(delete_group_button);
+delete_group_button.textContent = "Delete Group";
+
+const regex_filter_area = document.createElement("div");
+regex_filter_area.className = "group_settings_subdiv";
+regex_filter_area.id = "regex_filter_area";
+const filter_regex_input_label = document.createElement("label");
+regex_filter_area.appendChild(filter_regex_input_label);
+filter_regex_input_label.setAttribute("for", "filter_regex_input");
+filter_regex_input_label.textContent = "Group Regex Filter";
+const filter_regex_input = document.createElement("input");
+regex_filter_area.appendChild(filter_regex_input);
+filter_regex_input.setAttribute("type", "text");
+filter_regex_input.id = "filter_regex_input";
+
+
+const overall_group_settings_area = document.createElement("div");
+overall_group_settings_area.className = "group_settings_subdiv"
+overall_group_settings_area.id = "overall_group_settings_area";
+const enable_group_button_label = document.createElement("label");
+overall_group_settings_area.appendChild(enable_group_button_label);
+enable_group_button_label.setAttribute("for", "enable_group_button");
+enable_group_button_label.textContent = "Group enabled: ";
+const enable_group_button = document.createElement("input");
+overall_group_settings_area.appendChild(enable_group_button);
+enable_group_button.setAttribute("type", "checkbox");
+enable_group_button.id = "enable_group_button";
+const time_offset_label = document.createElement("label");
+overall_group_settings_area.appendChild(time_offset_label);
+time_offset_label.setAttribute("for", "time_offset_input");
+time_offset_label.textContent = "Time offset(s): ";
+const time_offset_input = document.createElement("input");
+overall_group_settings_area.appendChild(time_offset_input);
+time_offset_input.setAttribute("type", "number");
+time_offset_input.id = "time_offset_input";
+const sensitivity_label = document.createElement("label");
+overall_group_settings_area.appendChild(sensitivity_label);
+sensitivity_label.setAttribute("for", "sensitivity_input");
+sensitivity_label.textContent = "Sensitivity: ";
+sensitivity_label.id = "sensitivity_label";
+const sensitivity_input = document.createElement("input");
+overall_group_settings_area.appendChild(sensitivity_input);
+sensitivity_input.setAttribute("type", "number");
+sensitivity_input.id = "sensitivity_input";
+
+
+
+const trend_indicators_area = document.createElement("div");
+trend_indicators_area.id = "trend_indicators_area";
+
+
 const save_settings_button = document.createElement("button");
 group_settings_area.appendChild(save_settings_button);
 save_settings_button.id = "save_settings_button";
 save_settings_button.textContent = "SAVE";
 save_settings_button.addEventListener("click", () => {
+	if(unsaved_settings_savable){
+		settings_menu_is_open = false;
+		highlights_area.removeChild(settings_menu);
+		update_main_menu();
+		highlights_button_pressed();
+		settings_sets = JSON.parse(JSON.stringify(unsaved_settings_sets));
+		settings_groups = JSON.parse(JSON.stringify(unsaved_settings_groups));
+		save_settings();
+		chrome.storage.local.set({"livestream_highlighter_progress": null});
+		console.error("Testing console.error")
+		reset_gathering_analysis_variables();
+		highlights_button_pressed();
+	}
+})
+const cancel_settings_button = document.createElement("button");
+group_settings_area.appendChild(cancel_settings_button);
+cancel_settings_button.id = "cancel_settings_button";
+cancel_settings_button.textContent = "CANCEL";
+cancel_settings_button.addEventListener("click", () => {
 	settings_menu_is_open = false;
 	highlights_area.removeChild(settings_menu);
-	chrome.storage.local.set({"livestream_highlighter_progress": null});
-	//TODO: Reanalyze on settings changes
+	console.log(settings_sets);
+	console.log(settings_groups);
+	console.log(unsaved_settings_sets);
+	console.log(unsaved_settings_groups);
+	reset_unsaved_settings();
+	console.log(unsaved_settings_sets);
+	console.log(unsaved_settings_groups);
 	update_main_menu();
-	save_settings();
-})
+});
 
-
-
-function save_settings() {
-	let settings_sets_to_save = default_settings_sets;
-	
-	//Converts regexes into their strings
-	for(let set_index = 0; set_index < settings_sets_to_save.length; set_index++){
-		for(let group_index = 0; group_index < settings_sets_to_save[set_index]["groups"].length; group_index++){
+function convert_settings_regexes_to_strings() {
+	for(let set_index = 0; set_index < settings_sets.length; set_index++){
+		for(let group_index = 0; group_index < settings_sets[set_index]["groups"].length; group_index++){
 			//Regex for group filter
-			if(settings_sets_to_save[set_index]["groups"][group_index]["Regex filter"].source === "(?:)")
-				settings_sets_to_save[set_index]["groups"][group_index]["Regex filter"] = "";
+			if(settings_sets[set_index]["groups"][group_index]["Regex filter"].source === "(?:)")
+				settings_sets[set_index]["groups"][group_index]["Regex filter"] = "";
 			else
-				settings_sets_to_save[set_index]["groups"][group_index]["Regex filter"] = settings_sets_to_save[set_index]["groups"][group_index]["Regex filter"].source;
+				settings_sets[set_index]["groups"][group_index]["Regex filter"] = settings_sets[set_index]["groups"][group_index]["Regex filter"].source;
 			
 			//Regex for individual indicator regex
-			for(let indicator_index = 0; indicator_index < settings_sets_to_save[set_index]["groups"][group_index]["Text to match"].length; indicator_index++){
-				if(settings_sets_to_save[set_index]["groups"][group_index]["Text to match"][indicator_index]["String/Regex"] === "Regex"){
-					if(settings_sets_to_save[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"].source === "(?:)")
-						settings_sets_to_save[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = "";
+			for(let indicator_index = 0; indicator_index < settings_sets[set_index]["groups"][group_index]["Text to match"].length; indicator_index++){
+				if(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["String/Regex"] === "Regex"){
+					if(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"].source === "(?:)")
+						settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = "";
 					else
-						settings_sets_to_save[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = settings_sets_to_save[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"].source;
+						settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"].source;
 				}
 			}
 		}
 	}
-	
-	console.log(settings_sets_to_save);
-	chrome.storage.local.set({"livestream_highlighter_settings" : [0, settings_sets_to_save]})
+}
+
+function convert_settings_strings_to_regexes(settings_sets_copy) {
+	if(settings_sets_copy){
+		for(let set_index = 0; set_index < settings_sets_copy.length; set_index++){
+			for(let group_index = 0; group_index < settings_sets_copy[set_index]["groups"].length; group_index++){
+				//Regex for group filter
+				settings_sets_copy[set_index]["groups"][group_index]["Regex filter"] = new RegExp(settings_sets_copy[set_index]["groups"][group_index]["Regex filter"]);
+				
+				//Regex for individual indicator regex
+				for(let indicator_index = 0; indicator_index < settings_sets_copy[set_index]["groups"][group_index]["Text to match"].length; indicator_index++)
+					if(settings_sets_copy[set_index]["groups"][group_index]["Text to match"][indicator_index]["String/Regex"] === "Regex")
+						settings_sets_copy[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = new RegExp(settings_sets_copy[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"]);
+			}
+		}
+	} else {
+		for(let set_index = 0; set_index < settings_sets.length; set_index++){
+			for(let group_index = 0; group_index < settings_sets[set_index]["groups"].length; group_index++){
+				//Regex for group filter
+				settings_sets[set_index]["groups"][group_index]["Regex filter"] = new RegExp(settings_sets[set_index]["groups"][group_index]["Regex filter"]);
+				
+				//Regex for individual indicator regex
+				for(let indicator_index = 0; indicator_index < settings_sets[set_index]["groups"][group_index]["Text to match"].length; indicator_index++)
+					if(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["String/Regex"] === "Regex")
+						settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = new RegExp(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"]);
+			}
+		}
+	}
+}
+
+function save_settings() {
+	convert_settings_regexes_to_strings();
+	console.log(settings_sets);
+	chrome.storage.local.set({"livestream_highlighter_settings" : [0, settings_sets_to_save]});
+	convert_settings_strings_to_regexes();
 }
 
 function load_settings() {
@@ -223,25 +340,19 @@ function load_settings() {
 		console.log(results)
 		if(results["livestream_highlighter_settings"].length){
 			settings_sets = results["livestream_highlighter_settings"][1];
+			unsaved_settings_sets = JSON.parse(JSON.stringify(settings_sets));
 			
-			//Converts string representations of regex back into actual regex
-			for(let set_index = 0; set_index < settings_sets.length; set_index++){
-				for(let group_index = 0; group_index < settings_sets[set_index]["groups"].length; group_index++){
-					//Regex for group filter
-					settings_sets[set_index]["groups"][group_index]["Regex filter"] = new RegExp(settings_sets[set_index]["groups"][group_index]["Regex filter"]);
-					
-					//Regex for individual indicator regex
-					for(let indicator_index = 0; indicator_index < settings_sets[set_index]["groups"][group_index]["Text to match"].length; indicator_index++)
-						if(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["String/Regex"] === "Regex")
-							settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = new RegExp(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"]);
+			convert_settings_strings_to_regexes();
+			convert_settings_strings_to_regexes(unsaved_settings_sets);
 
-				}
-			}
 			currently_used_settings_set_index = results["livestream_highlighter_settings"][0]
 			settings_groups = settings_sets[results["livestream_highlighter_settings"][0]]["groups"];
-			unsaved_settings_sets = settings_sets;
-			unsaved_settings_groups = settings_groups;
+			unsaved_settings_groups = unsaved_settings_sets[results["livestream_highlighter_settings"][0]]["groups"];
+
 			console.log("Livestream Highlighter: Settings retrieved");
+		} else {
+			settings_sets = default_settings_sets;
+			settings_groups = default_settings_groups;
 		}
 		
 		//Inserts empty defaults for group_analysis_variables for each trend group (now that the trend groups are loaded)
@@ -260,7 +371,18 @@ function load_settings() {
 		console.log(settings_groups);
 		console.log(enabled_settings_groups);
 	})
+}
 
+function reset_unsaved_settings() {
+	convert_settings_regexes_to_strings();
+	unsaved_settings_sets = JSON.parse(JSON.stringify(settings_sets));
+	convert_settings_strings_to_regexes(unsaved_settings_sets);
+	convert_settings_strings_to_regexes();
+	
+	currently_used_settings_set_index = Math.min(currently_used_settings_set_index, unsaved_settings_sets.length - 1);
+	currently_viewing_settings_group_index = Math.min(currently_viewing_settings_group_index, unsaved_settings_groups.length - 1);
+
+	unsaved_settings_groups = unsaved_settings_sets[currently_used_settings_set_index]["groups"];
 }
 
 //Returns a number of seconds from a 00:00:00 formatted timestamp.
@@ -303,13 +425,18 @@ function update_settings_menu() {
 	set_selection_bar.innerHTML = "";
 	group_selection_bar.innerHTML = "";
 	group_settings_area.innerHTML = "";
+	trend_indicators_area.innerHTML = "";
 	
 	settings_menu.appendChild(set_selection_bar);
 	settings_menu.appendChild(group_selection_bar);
 	settings_menu.appendChild(group_settings_area);
 	
+	currently_used_settings_set_index = Math.min(currently_used_settings_set_index, unsaved_settings_sets.length - 1);
+	currently_viewing_settings_group_index = Math.min(currently_viewing_settings_group_index, unsaved_settings_groups.length - 1);
+
 	unsaved_settings_groups = unsaved_settings_sets[currently_used_settings_set_index]["groups"];
 	
+	//Append sets
 	for(let i = 0; i < unsaved_settings_sets.length; i++){
 		const settings_set_button = document.createElement("button");
 		settings_set_button.className = "settings_set_button";
@@ -335,41 +462,27 @@ function update_settings_menu() {
 		}
 	}
 	
-	let has_new_set = false;
-	for(i in unsaved_settings_sets){
-		if(unsaved_settings_sets[i]["name"] === "New Set"){
-			has_new_set = true;
-			break;
-		}
-	}
-	
-	if(!has_new_set){
-		const add_set_button = document.createElement("button");
-		set_selection_bar.appendChild(add_set_button);
-		add_set_button.className = "add_item_button";
-		add_set_button.textContent = "+";
-		add_set_button.addEventListener("click", () => {
-			unsaved_settings_sets.push({"name": "New Set", "groups": [{
-																"Name": "New Group", 
-																"Enabled": true, 
-																"Time before trend": 15, 
-																"Sensitivity": 0.5, 
-																"Regex filter": new RegExp(""), 
-																"Text to match": []
-															  }]
-			});
-			currently_used_settings_set_index = unsaved_settings_sets.length - 1;
-			currently_viewing_settings_group_index = 0;
-			update_settings_menu();
+	//Append "add set" button
+	const add_set_button = document.createElement("button");
+	set_selection_bar.appendChild(add_set_button);
+	add_set_button.className = "add_item_button";
+	add_set_button.textContent = "+";
+	add_set_button.addEventListener("click", () => {
+		unsaved_settings_sets.push({"name": "New Set", "groups": [{
+															"Name": "New Group", 
+															"Enabled": true, 
+															"Time before trend": 15, 
+															"Sensitivity": 0.5, 
+															"Regex filter": new RegExp(""), 
+															"Text to match": []
+														  }]
 		});
+		currently_used_settings_set_index = unsaved_settings_sets.length - 1;
+		currently_viewing_settings_group_index = 0;
+		update_settings_menu();
+	});
 
-	} else {
-		const new_set_warning_message = document.createElement("p");
-		set_selection_bar.appendChild(new_set_warning_message);
-		new_set_warning_message.className = "warning_message";
-		new_set_warning_message.textContent = 'Change the name of "New Set"';
-	}
-	
+	//Append groups
 	for(let i = 0; i < unsaved_settings_groups.length; i++){
 		const settings_group_button = document.createElement("button");
 		settings_group_button.className = "settings_group_button";
@@ -395,21 +508,31 @@ function update_settings_menu() {
 		}
 	}
 	
+	let duplicate_name_exists = false;
 	
-	let has_new_group = false;
-	for(i in unsaved_settings_groups){
-		if(unsaved_settings_groups[i]["Name"] === "New Group"){
-			has_new_group = true;
+	//Check group name uniqueness
+	for(i in unsaved_settings_sets){
+		let group_name_array = [];
+		for(j in unsaved_settings_sets[i]["groups"])
+			group_name_array.push(unsaved_settings_sets[i]["groups"][j]["Name"]);
+		if((new Set(group_name_array)).size !== group_name_array.length){
+			const duplicate_group_warning_message = document.createElement("p");
+			group_selection_bar.appendChild(duplicate_group_warning_message);
+			duplicate_group_warning_message.className = "warning_message";
+			duplicate_group_warning_message.textContent = 'Duplicate group name in set "' + unsaved_settings_sets[i]["name"] + '"';
+			
+			unsaved_settings_savable = false;
+			duplicate_name_exists = true;
 			break;
 		}
 	}
 	
-	if(!has_new_group){
+	//Append "Add group" button
+	if(!duplicate_name_exists){
 		const add_group_button = document.createElement("button");
 		group_selection_bar.appendChild(add_group_button);
 		add_group_button.className = "add_item_button";
 		add_group_button.textContent = "+";
-		
 		add_group_button.addEventListener("click", () => {
 			unsaved_settings_sets[currently_used_settings_set_index]["groups"].push({
 																"Name": "New Group", 
@@ -423,20 +546,39 @@ function update_settings_menu() {
 			currently_viewing_settings_group_index = unsaved_settings_groups.length - 1;
 			update_settings_menu();
 		});
-
-	} else {
-		const new_group_warning_message = document.createElement("p");
-		group_selection_bar.appendChild(new_group_warning_message);
-		new_group_warning_message.className = "warning_message";
-		new_group_warning_message.textContent = 'Change the name of "New Group"';
 	}
 	
 	
+	if(!unsaved_settings_sets){ //If empty
+		const create_set_warning_message = document.createElement("p");
+		group_settings_area.appendChild(create_set_warning_message);
+		create_set_warning_message.className = "warning_message";
+		create_set_warning_message.textContent = "Create a new set to begin";
+	} else {
+		group_settings_area.appendChild(settings_management_buttons_area);
+		group_settings_area.appendChild(regex_filter_area);
+		const raw_regex = unsaved_settings_sets[currently_used_settings_set_index]["groups"][currently_viewing_settings_group_index]["Regex filter"];
+		console.log(unsaved_settings_sets);
+		console.log(currently_used_settings_set_index);
+		console.log(currently_viewing_settings_group_index);
+		if(raw_regex.source !== "(?:)")
+			filter_regex_input.value = raw_regex.source;
+		else
+			filter_regex_input.value = "";
+		group_settings_area.appendChild(overall_group_settings_area);
+
+		group_settings_area.appendChild(trend_indicators_area);
+		
+		
+		group_settings_area.appendChild(save_settings_button);
+		group_settings_area.appendChild(cancel_settings_button);
+	}
 	
 	
-	group_settings_area.appendChild(save_settings_button);
+
 	
-	//for(let i = 0; i < )
+	//Append trend indicators
+	//for(let i = 0; i < ; i++)
 	
 	//TODO: Refresh settings menu in all areas.
 }
@@ -487,6 +629,33 @@ function append_highlight_moments() {
 		highlights_menu.appendChild(highlight_moment);
 	}
 	
+}
+
+//Reset done on saving new settings
+function reset_gathering_analysis_variables(){
+	current_gathering_state = 0;
+	current_analysis_state = 0;
+	next_continuation_id = "";
+	latest_gathering_message_time = null;
+	analysis_results = [];
+	initial_analysis_variables = [-1, 0, 20, 1];
+	message_array = [];
+	group_analysis_variables = [];
+	enabled_settings_groups = [];
+	
+	for(i in settings_groups){
+		if(settings_groups[i]["Enabled"]){
+			group_analysis_variables.push({
+										"filter_match_count": 0, 
+										"text_match_count": 0, 
+										"trend_start_time": null
+									});
+			enabled_settings_groups.push(settings_groups[i]);
+		}
+	}
+	
+	console.error(group_analysis_variables);
+	console.error(enabled_settings_groups);
 }
 
 //Gets the first continuation id from the video page
@@ -595,7 +764,7 @@ function analyze_messages(current_analysis_time, current_righthand_index, analys
 			return;
 		}
 		
-		//Saves progress to storage
+		//Saves progress to variables
 		initial_analysis_variables = [current_analysis_time, current_righthand_index, analysis_time_width, iteration_count, group_analysis_variables]
 		
 		console.log("message_array length check: " + message_array.length);
