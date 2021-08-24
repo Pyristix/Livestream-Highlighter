@@ -239,6 +239,33 @@ input[type="checkbox"] {
 	border: 1px solid black;
 }
 
+#trend_indicator_div {
+	margin-bottom: 5px;
+}
+
+#trend_indicator_div > select {
+	position: relative;
+	top: 0px;
+	left: 2px;
+}
+
+#trend_indicator_div > input {
+	position: relative;
+	left: 5px;
+	width: 90px;
+}
+
+#trend_indicator_div > button {
+	position: relative;
+	float: right;
+	right: 1px;
+}
+
+#add_indicator_button {
+	left: 85px;
+	top: 5px;
+}
+
 #save_settings_button {
 	background-color: white;
 	font-size: 12px;

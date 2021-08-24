@@ -36,24 +36,12 @@ const default_settings_groups = [{"Name": "Funny",
 								  "Regex filter": new RegExp("/[一-龠]|[ぁ-ゔ]|[ァ-ヴー]|[ａ-ｚＡ-Ｚ０-９]|[々〆〤]/u"), 
 								  "Text to match": [{"String/Regex": "String", "Text": "かわいい"},
 													{"String/Regex": "String", "Text": "可愛い"}]},
-								 {"Name": "ちょこん1", 
+								 {"Name": "Deep talk/Personal story", 
 								  "Enabled": true, 
 								  "Time before trend": 15, 
 								  "Sensitivity": 0.5, 
 								  "Regex filter": new RegExp("/[一-龠]|[ぁ-ゔ]|[ァ-ヴー]|[ａ-ｚＡ-Ｚ０-９]|[々〆〤]/u"), 
-								  "Text to match": [{"String/Regex": "String", "Text": "ちょこん"}]},
-								 {"Name": "ちょこん2", 
-								  "Enabled": true, 
-								  "Time before trend": 15, 
-								  "Sensitivity": 0.5, 
-								  "Regex filter": new RegExp(""), 
-								  "Text to match": [{"String/Regex": "String", "Text": "ちょこん"}]},
-								 {"Name": "待機", 
-								  "Enabled": true, 
-								  "Time before trend": 15, 
-								  "Sensitivity": 0.5, 
-								  "Regex filter": new RegExp(""), 
-								  "Text to match": [{"String/Regex": "Regex", "Text": new RegExp("待機")}]}];
+								  "Text to match": [{"String/Regex": "String", "Text": "うんうん"}]}];
 
 const default_settings_sets = [{"name" : "Default Settings", 
 								"groups" : default_settings_groups}];
@@ -84,8 +72,6 @@ chrome.storage.local.get("livestream_highlighter_settings", (results) => {
 
 console.log(settings_sets);
 console.log(settings_groups);
-
-
 
 
 //Format: {"group":"Kusa", "start_time":10, "end_time": 40}
@@ -165,7 +151,7 @@ settings_button.addEventListener("click", () => {
 	highlights_menu.removeChild(settings_button);
 	highlights_area.insertBefore(settings_menu, highlights_menu);
 	update_settings_menu();
-})
+});
 
 const set_selection_bar = document.createElement("div");
 settings_menu.appendChild(set_selection_bar);
@@ -185,14 +171,25 @@ const help_button = document.createElement("button");
 settings_management_buttons_area.appendChild(help_button);
 help_button.textContent = "?";
 help_button.addEventListener("click", () => {
-	window.open("https://www.google.com", "_blank");
+	window.open("https://github.com/Pyristix/Livestream-Highlighter/wiki", "_blank");
 });
 const delete_set_button = document.createElement("button");
 settings_management_buttons_area.appendChild(delete_set_button);
 delete_set_button.textContent = "Delete Set";
+delete_set_button.addEventListener("click", () => {
+	unsaved_settings_sets.splice(currently_used_settings_set_index, 1);
+	update_settings_menu();
+});
 const delete_group_button = document.createElement("button");
 settings_management_buttons_area.appendChild(delete_group_button);
 delete_group_button.textContent = "Delete Group";
+delete_group_button.addEventListener("click", () => {
+	unsaved_settings_groups.splice(currently_viewing_settings_group_index, 1);
+	//Delete set if the last group was deleted
+	if(!unsaved_settings_sets[currently_used_settings_set_index]["groups"].length)
+		unsaved_settings_sets.splice(currently_used_settings_set_index, 1);
+	update_settings_menu();
+});
 
 const regex_filter_area = document.createElement("div");
 regex_filter_area.className = "group_settings_subdiv";
@@ -205,6 +202,11 @@ const filter_regex_input = document.createElement("input");
 regex_filter_area.appendChild(filter_regex_input);
 filter_regex_input.setAttribute("type", "text");
 filter_regex_input.id = "filter_regex_input";
+filter_regex_input.addEventListener("blur", () => {
+	unsaved_settings_groups[currently_viewing_settings_group_index]["Regex filter"] = new RegExp(filter_regex_input.value);
+	update_settings_menu();
+});
+
 
 
 const overall_group_settings_area = document.createElement("div");
@@ -218,6 +220,9 @@ const enable_group_button = document.createElement("input");
 overall_group_settings_area.appendChild(enable_group_button);
 enable_group_button.setAttribute("type", "checkbox");
 enable_group_button.id = "enable_group_button";
+enable_group_button.addEventListener("input", () => {
+	unsaved_settings_groups[currently_viewing_settings_group_index]["Enabled"] = enable_group_button.checked;
+});
 const time_offset_label = document.createElement("label");
 overall_group_settings_area.appendChild(time_offset_label);
 time_offset_label.setAttribute("for", "time_offset_input");
@@ -226,6 +231,15 @@ const time_offset_input = document.createElement("input");
 overall_group_settings_area.appendChild(time_offset_input);
 time_offset_input.setAttribute("type", "number");
 time_offset_input.id = "time_offset_input";
+time_offset_input.setAttribute("min", "0");
+time_offset_input.setAttribute("max", "120");
+time_offset_input.setAttribute("step", "1");
+time_offset_input.addEventListener("blur", () => {
+	const inputted_value = parseInt(time_offset_input.value);
+	if(inputted_value >= 0 && inputted_value <= 120)
+		unsaved_settings_groups[currently_viewing_settings_group_index]["Time before trend"] = Math.round(time_offset_input.value);
+	update_settings_menu();
+});
 const sensitivity_label = document.createElement("label");
 overall_group_settings_area.appendChild(sensitivity_label);
 sensitivity_label.setAttribute("for", "sensitivity_input");
@@ -235,7 +249,15 @@ const sensitivity_input = document.createElement("input");
 overall_group_settings_area.appendChild(sensitivity_input);
 sensitivity_input.setAttribute("type", "number");
 sensitivity_input.id = "sensitivity_input";
-
+sensitivity_input.setAttribute("min", "0.1");
+sensitivity_input.setAttribute("max", "1");
+sensitivity_input.setAttribute("step", "0.1");
+sensitivity_input.addEventListener("blur", () => {
+	const inputted_value = parseFloat(sensitivity_input.value);
+	if(inputted_value >= 0.1 && inputted_value <= 1)
+		unsaved_settings_groups[currently_viewing_settings_group_index]["Sensitivity"] = Math.round(sensitivity_input.value * 10) / 10;
+	update_settings_menu();
+});
 
 
 const trend_indicators_area = document.createElement("div");
@@ -251,13 +273,20 @@ save_settings_button.addEventListener("click", () => {
 		settings_menu_is_open = false;
 		highlights_area.removeChild(settings_menu);
 		update_main_menu();
-		highlights_button_pressed();
+		console.log(unsaved_settings_sets);
+		
+		convert_settings_regexes_to_strings(unsaved_settings_sets);
 		settings_sets = JSON.parse(JSON.stringify(unsaved_settings_sets));
-		settings_groups = JSON.parse(JSON.stringify(unsaved_settings_groups));
+		convert_settings_strings_to_regexes(unsaved_settings_sets);
+		convert_settings_strings_to_regexes();
+		settings_groups = settings_sets[currently_used_settings_set_index]["groups"];
 		save_settings();
+		
+		console.log(settings_sets);
+		
 		chrome.storage.local.set({"livestream_highlighter_progress": null});
-		console.error("Testing console.error")
 		reset_gathering_analysis_variables();
+		highlights_button_pressed();
 		highlights_button_pressed();
 	}
 })
@@ -268,32 +297,48 @@ cancel_settings_button.textContent = "CANCEL";
 cancel_settings_button.addEventListener("click", () => {
 	settings_menu_is_open = false;
 	highlights_area.removeChild(settings_menu);
-	console.log(settings_sets);
-	console.log(settings_groups);
-	console.log(unsaved_settings_sets);
-	console.log(unsaved_settings_groups);
 	reset_unsaved_settings();
-	console.log(unsaved_settings_sets);
-	console.log(unsaved_settings_groups);
 	update_main_menu();
 });
 
-function convert_settings_regexes_to_strings() {
-	for(let set_index = 0; set_index < settings_sets.length; set_index++){
-		for(let group_index = 0; group_index < settings_sets[set_index]["groups"].length; group_index++){
-			//Regex for group filter
-			if(settings_sets[set_index]["groups"][group_index]["Regex filter"].source === "(?:)")
-				settings_sets[set_index]["groups"][group_index]["Regex filter"] = "";
-			else
-				settings_sets[set_index]["groups"][group_index]["Regex filter"] = settings_sets[set_index]["groups"][group_index]["Regex filter"].source;
-			
-			//Regex for individual indicator regex
-			for(let indicator_index = 0; indicator_index < settings_sets[set_index]["groups"][group_index]["Text to match"].length; indicator_index++){
-				if(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["String/Regex"] === "Regex"){
-					if(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"].source === "(?:)")
-						settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = "";
-					else
-						settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"].source;
+function convert_settings_regexes_to_strings(settings_sets_copy) {
+	if(settings_sets_copy){
+		for(let set_index = 0; set_index < settings_sets_copy.length; set_index++){
+			for(let group_index = 0; group_index < settings_sets_copy[set_index]["groups"].length; group_index++){
+				//Regex for group filter
+				if(settings_sets_copy[set_index]["groups"][group_index]["Regex filter"].source === "(?:)")
+					settings_sets_copy[set_index]["groups"][group_index]["Regex filter"] = "";
+				else
+					settings_sets_copy[set_index]["groups"][group_index]["Regex filter"] = settings_sets_copy[set_index]["groups"][group_index]["Regex filter"].source;
+				
+				//Regex for individual indicator regex
+				for(let indicator_index = 0; indicator_index < settings_sets_copy[set_index]["groups"][group_index]["Text to match"].length; indicator_index++){
+					if(settings_sets_copy[set_index]["groups"][group_index]["Text to match"][indicator_index]["String/Regex"] === "Regex"){
+						if(settings_sets_copy[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"].source === "(?:)")
+							settings_sets_copy[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = "";
+						else
+							settings_sets_copy[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = settings_sets_copy[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"].source;
+					}
+				}
+			}
+		}
+	} else {
+		for(let set_index = 0; set_index < settings_sets.length; set_index++){
+			for(let group_index = 0; group_index < settings_sets[set_index]["groups"].length; group_index++){
+				//Regex for group filter
+				if(settings_sets[set_index]["groups"][group_index]["Regex filter"].source === "(?:)")
+					settings_sets[set_index]["groups"][group_index]["Regex filter"] = "";
+				else
+					settings_sets[set_index]["groups"][group_index]["Regex filter"] = settings_sets[set_index]["groups"][group_index]["Regex filter"].source;
+				
+				//Regex for individual indicator regex
+				for(let indicator_index = 0; indicator_index < settings_sets[set_index]["groups"][group_index]["Text to match"].length; indicator_index++){
+					if(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["String/Regex"] === "Regex"){
+						if(settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"].source === "(?:)")
+							settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = "";
+						else
+							settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"] = settings_sets[set_index]["groups"][group_index]["Text to match"][indicator_index]["Text"].source;
+					}
 				}
 			}
 		}
@@ -331,14 +376,14 @@ function convert_settings_strings_to_regexes(settings_sets_copy) {
 function save_settings() {
 	convert_settings_regexes_to_strings();
 	console.log(settings_sets);
-	chrome.storage.local.set({"livestream_highlighter_settings" : [0, settings_sets_to_save]});
+	chrome.storage.local.set({"livestream_highlighter_settings" : [0, settings_sets]});
 	convert_settings_strings_to_regexes();
 }
 
 function load_settings() {
 	chrome.storage.local.get("livestream_highlighter_settings", (results) => {
 		console.log(results)
-		if(results["livestream_highlighter_settings"].length){
+		if(results["livestream_highlighter_settings"] && results["livestream_highlighter_settings"].length){
 			settings_sets = results["livestream_highlighter_settings"][1];
 			unsaved_settings_sets = JSON.parse(JSON.stringify(settings_sets));
 			
@@ -353,6 +398,8 @@ function load_settings() {
 		} else {
 			settings_sets = default_settings_sets;
 			settings_groups = default_settings_groups;
+			reset_unsaved_settings();
+			save_settings();
 		}
 		
 		//Inserts empty defaults for group_analysis_variables for each trend group (now that the trend groups are loaded)
@@ -379,10 +426,10 @@ function reset_unsaved_settings() {
 	convert_settings_strings_to_regexes(unsaved_settings_sets);
 	convert_settings_strings_to_regexes();
 	
-	currently_used_settings_set_index = Math.min(currently_used_settings_set_index, unsaved_settings_sets.length - 1);
-	currently_viewing_settings_group_index = Math.min(currently_viewing_settings_group_index, unsaved_settings_groups.length - 1);
-
+	currently_used_settings_set_index = Math.max(0, Math.min(currently_used_settings_set_index, unsaved_settings_sets.length - 1));
+	console.log(unsaved_settings_sets);
 	unsaved_settings_groups = unsaved_settings_sets[currently_used_settings_set_index]["groups"];
+	currently_viewing_settings_group_index = Math.max(0, Math.min(currently_viewing_settings_group_index, unsaved_settings_groups.length - 1));
 }
 
 //Returns a number of seconds from a 00:00:00 formatted timestamp.
@@ -432,11 +479,10 @@ function update_settings_menu() {
 	settings_menu.appendChild(group_settings_area);
 	
 	currently_used_settings_set_index = Math.min(currently_used_settings_set_index, unsaved_settings_sets.length - 1);
+	unsaved_settings_groups = (currently_used_settings_set_index > -1) ? unsaved_settings_sets[currently_used_settings_set_index]["groups"] : [];
 	currently_viewing_settings_group_index = Math.min(currently_viewing_settings_group_index, unsaved_settings_groups.length - 1);
-
-	unsaved_settings_groups = unsaved_settings_sets[currently_used_settings_set_index]["groups"];
 	
-	//Append sets
+	//Appends sets to set selection bar
 	for(let i = 0; i < unsaved_settings_sets.length; i++){
 		const settings_set_button = document.createElement("button");
 		settings_set_button.className = "settings_set_button";
@@ -449,9 +495,14 @@ function update_settings_menu() {
 		settings_set_name.className = "settings_set_name";
 		settings_set_name.setAttribute("type", "text");
 		settings_set_name.value = unsaved_settings_sets[i]["name"];
-		settings_set_name.addEventListener("click",() => {
+		settings_set_name.addEventListener("click", () => {
 			if(settings_set_button.className.split(" ").length === 2) //If currently selected
 				event.stopPropagation();
+		});
+		settings_set_name.addEventListener("blur", () => {
+			if(settings_set_name.value !== "")
+				unsaved_settings_sets[i]["name"] = settings_set_name.value;
+			update_settings_menu();
 		});
 		
 		set_selection_bar.appendChild(settings_set_button);
@@ -462,7 +513,7 @@ function update_settings_menu() {
 		}
 	}
 	
-	//Append "add set" button
+	//Appends "add set" button
 	const add_set_button = document.createElement("button");
 	set_selection_bar.appendChild(add_set_button);
 	add_set_button.className = "add_item_button";
@@ -482,7 +533,7 @@ function update_settings_menu() {
 		update_settings_menu();
 	});
 
-	//Append groups
+	//Appends groups to group selection bar
 	for(let i = 0; i < unsaved_settings_groups.length; i++){
 		const settings_group_button = document.createElement("button");
 		settings_group_button.className = "settings_group_button";
@@ -499,6 +550,11 @@ function update_settings_menu() {
 			if(settings_group_button.className.split(" ").length === 2) //If currently selected
 				event.stopPropagation();
 		});
+		settings_group_name.addEventListener("blur", () => {
+			if(settings_group_name.value !== "")
+				unsaved_settings_groups[i]["Name"] = settings_group_name.value;
+			update_settings_menu();
+		});
 		
 		group_selection_bar.appendChild(settings_group_button);
 		
@@ -508,9 +564,8 @@ function update_settings_menu() {
 		}
 	}
 	
+	//Checks group name uniqueness
 	let duplicate_name_exists = false;
-	
-	//Check group name uniqueness
 	for(i in unsaved_settings_sets){
 		let group_name_array = [];
 		for(j in unsaved_settings_sets[i]["groups"])
@@ -549,12 +604,7 @@ function update_settings_menu() {
 	}
 	
 	
-	if(!unsaved_settings_sets){ //If empty
-		const create_set_warning_message = document.createElement("p");
-		group_settings_area.appendChild(create_set_warning_message);
-		create_set_warning_message.className = "warning_message";
-		create_set_warning_message.textContent = "Create a new set to begin";
-	} else {
+	if(unsaved_settings_sets.length){ //If there is at least 1 set
 		group_settings_area.appendChild(settings_management_buttons_area);
 		group_settings_area.appendChild(regex_filter_area);
 		const raw_regex = unsaved_settings_sets[currently_used_settings_set_index]["groups"][currently_viewing_settings_group_index]["Regex filter"];
@@ -565,22 +615,77 @@ function update_settings_menu() {
 			filter_regex_input.value = raw_regex.source;
 		else
 			filter_regex_input.value = "";
+		
 		group_settings_area.appendChild(overall_group_settings_area);
-
+		enable_group_button.checked = unsaved_settings_sets[currently_used_settings_set_index]["groups"][currently_viewing_settings_group_index]["Enabled"];
+		time_offset_input.value = unsaved_settings_sets[currently_used_settings_set_index]["groups"][currently_viewing_settings_group_index]["Time before trend"];
+		sensitivity_input.value = unsaved_settings_sets[currently_used_settings_set_index]["groups"][currently_viewing_settings_group_index]["Sensitivity"];
+		
 		group_settings_area.appendChild(trend_indicators_area);
 		
+		//Append trend indicators
+		for(let i = 0; i < unsaved_settings_groups[currently_viewing_settings_group_index]["Text to match"].length; i++) {
+			const trend_indicator_div = document.createElement("div");
+			trend_indicators_area.appendChild(trend_indicator_div);
+			trend_indicator_div.id = "trend_indicator_div";
+			
+			const indicator_input = document.createElement("input");
+			
+			const indicator_type_picker = document.createElement("select");
+			trend_indicator_div.appendChild(indicator_type_picker);
+			indicator_type_picker.addEventListener("input", () => {
+				unsaved_settings_groups[currently_viewing_settings_group_index]["Text to match"][i]["String/Regex"] = indicator_type_picker.value;
+				unsaved_settings_groups[currently_viewing_settings_group_index]["Text to match"][i]["Text"] = indicator_input.value;
+			});
+			const indicator_text_option = document.createElement("option");
+			indicator_type_picker.appendChild(indicator_text_option);
+			indicator_text_option.innerText = "String";
+			indicator_text_option.value = "String";
+			const indicator_regex_option = document.createElement("option");
+			indicator_type_picker.appendChild(indicator_regex_option);
+			indicator_regex_option.innerText = "Regex";
+			indicator_regex_option.value = "Regex";
+			
+			indicator_type_picker.value = unsaved_settings_groups[currently_viewing_settings_group_index]["Text to match"][i]["String/Regex"];
+			
+			//Definition is earlier to prevent referencing undeclared variable in the type picker event listener logic
+			trend_indicator_div.appendChild(indicator_input);
+			indicator_input.value = unsaved_settings_groups[currently_viewing_settings_group_index]["Text to match"][i]["Text"];
+			indicator_input.addEventListener("blur", () => {
+				unsaved_settings_groups[currently_viewing_settings_group_index]["Text to match"][i]["Text"] = indicator_input.value;
+			});
+			
+			const indicator_delete_button = document.createElement("button");
+			trend_indicator_div.appendChild(indicator_delete_button);
+			indicator_delete_button.textContent = "x";
+			indicator_delete_button.addEventListener("click", () => {
+				unsaved_settings_groups[currently_viewing_settings_group_index]["Text to match"].splice(i,1);
+				update_settings_menu();
+			});
+			
+		}
+		
+		const add_indicator_button = document.createElement("button");
+		trend_indicators_area.appendChild(add_indicator_button);
+		add_indicator_button.className = "add_item_button";
+		add_indicator_button.id = "add_indicator_button";
+		add_indicator_button.textContent = "+";
+		add_indicator_button.addEventListener("click", () => {
+			unsaved_settings_groups[currently_viewing_settings_group_index]["Text to match"].push({"String/Regex": "String", "Text": "New Trend Indicator"});
+			update_settings_menu();
+		});
+		
+		group_settings_area.appendChild(save_settings_button);
+		group_settings_area.appendChild(cancel_settings_button);
+	} else { //If there are no sets
+		const create_set_warning_message = document.createElement("p");
+		group_settings_area.appendChild(create_set_warning_message);
+		create_set_warning_message.className = "warning_message";
+		create_set_warning_message.textContent = "Create a new set to begin";
 		
 		group_settings_area.appendChild(save_settings_button);
 		group_settings_area.appendChild(cancel_settings_button);
 	}
-	
-	
-
-	
-	//Append trend indicators
-	//for(let i = 0; i < ; i++)
-	
-	//TODO: Refresh settings menu in all areas.
 }
 
 //Updates what's shown on the main menu according to the current gathering and analysis states
@@ -1038,8 +1143,6 @@ async function highlights_button_pressed() {
 			highlights_area.appendChild(settings_menu);
 		highlights_area.appendChild(highlights_menu);
 		menu_is_open = true;
-		
-		
 	}
 	
 	
@@ -1062,7 +1165,7 @@ async function highlights_button_pressed() {
 
 
 //Initial insertion of elements into DOM and retrieval of video length from DOM
-if(!document.getElementById("highlights_area") && !document.getElementsByClassName("ytp-ad-module")[0].children.length && document.getElementById("chat") && document.getElementById("comments")){
+if(!document.getElementById("highlights_area") && document.getElementById("chat") && document.getElementById("comments").children.length && !document.getElementsByClassName("ytp-ad-module")[0].children.length){
 	console.log("Livestream Highlighter: Inserting Highlights Area");
 	recommended_section = document.getElementById("related");
 	document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section)
@@ -1081,7 +1184,7 @@ var retry_interval = setInterval(() => {
 		video_length = null;
 	} else {
 		if(!ad_playing){
-			if(!document.getElementById("highlights_area") && document.getElementById("chat") && document.getElementById("comments") && !document.getElementsByClassName("ytp-ad-module")[0].children.length){
+			if(!document.getElementById("highlights_area") && document.getElementById("chat") && document.getElementById("comments").children.length && !document.getElementsByClassName("ytp-ad-module")[0].children.length){
 				console.log("Livestream Highlighter: Inserting Highlights Area");
 				recommended_section = document.getElementById("related");
 				document.getElementById("related").parentNode.insertBefore(highlights_area, recommended_section)
