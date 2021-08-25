@@ -376,7 +376,7 @@ function convert_settings_strings_to_regexes(settings_sets_copy) {
 function save_settings() {
 	convert_settings_regexes_to_strings();
 	console.log(settings_sets);
-	chrome.storage.local.set({"livestream_highlighter_settings" : [0, settings_sets]});
+	chrome.storage.local.set({"livestream_highlighter_settings" : [currently_used_settings_set_index, settings_sets]});
 	convert_settings_strings_to_regexes();
 }
 
