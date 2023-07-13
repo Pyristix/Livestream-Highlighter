@@ -1,6 +1,8 @@
 # Livestream Highlighter
 A Google Chrome extension for analyzing and detecting trends in the live chats of YouTube livestreams. 
 
+Note: Development of this project has ceased and this repository is purely an archive.
+
 ### Technologies used 
 - Chrome Extensions API
 - JavaScript & CSS3 <br> 
